@@ -6,11 +6,6 @@
 .vscode
 .idea
 *.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
 
 # Python
 venv/
@@ -19,6 +14,6 @@ __pycache__
 .env
 
 # Otros
-output/
 *.log
 node_modules/
+.DS_Store

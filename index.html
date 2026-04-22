@@ -1374,7 +1374,7 @@
                             opciones.body = JSON.stringify(datos);
                         }
 
-                        const respuesta = await fetch(`http://localhost:5000/api${endpoint}`, opciones);
+                        const respuesta = await fetch(`/api${endpoint}`, opciones);
 
                         if (!respuesta.ok) {
                             throw new Error(`Error: ${respuesta.status}`);
@@ -2120,7 +2120,7 @@
                     formData.append('quincena_id', this.quincenaActual);
 
                     try {
-                        const respuesta = await fetch(`http://localhost:5000/api/quincenas/${this.quincenaActual}/importar-pdf`, {
+                        const respuesta = await fetch(`/api/quincenas/${this.quincenaActual}/importar-pdf`, {
                             method: 'POST',
                             body: formData
                         });
@@ -2151,7 +2151,7 @@
                     try {
                         this.mostrarAlerta('info', 'Generando', 'Creando PDFs, por favor espere...');
 
-                        const respuesta = await fetch(`http://localhost:5000/api/quincenas/${this.quincenaActual}/generar-pdfs`, {
+                        const respuesta = await fetch(`/api/quincenas/${this.quincenaActual}/generar-pdfs`, {
                             method: 'POST'
                         });
 
