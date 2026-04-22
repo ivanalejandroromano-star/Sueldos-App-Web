@@ -1,59 +1,22 @@
 """
-Backend Flask para Vercel - con inicialización de BD desde base64
+Backend Flask para Vercel - BD embebida desde base64
 """
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
-import base64
 import os
 import traceback
+from db_embedded import get_db_path
 
 app = Flask(__name__)
 CORS(app)
 
-# ========== INICIALIZAR BD ==========
-def init_database():
-    """Descodifica sueldos.db desde base64 si es necesario"""
-    db_path = '/var/task/sueldos.db'
-    b64_path = '/var/task/sueldos.db.b64'
-    
-    print(f"[INIT] Buscando BD en {db_path}")
-    
-    # Si existe base64, descodificar
-    if os.path.exists(b64_path):
-        print(f"[INIT] Encontrado base64, descodificando...")
-        try:
-            with open(b64_path, 'r') as f:
-                b64_content = f.read()
-            
-            db_bytes = base64.b64decode(b64_content)
-            
-            with open(db_path, 'wb') as f:
-                f.write(db_bytes)
-            
-            print(f"[INIT] BD recreada: {len(db_bytes)} bytes")
-            return db_path
-        except Exception as e:
-            print(f"[ERROR] Descodificación fallida: {e}")
-    
-    # Si el archivo binario existe, usarlo
-    if os.path.exists(db_path):
-        print(f"[INIT] BD encontrada en {db_path}")
-        return db_path
-    
-    print(f"[ERROR] No se encontró BD en ninguna ubicación")
-    return None
-
-BD_PATH = init_database()
-
 def get_connection():
-    """Abre conexión a SQLite"""
-    if not BD_PATH or not os.path.exists(BD_PATH):
-        raise Exception(f"BD no encontrada")
-    
+    """Abre conexión a SQLite con BD embebida"""
     try:
-        conn = sqlite3.connect(BD_PATH, timeout=10.0)
+        db_path = get_db_path()
+        conn = sqlite3.connect(db_path, timeout=10.0)
         conn.row_factory = sqlite3.Row
         return conn
     except Exception as e:
@@ -63,16 +26,17 @@ def get_connection():
 
 @app.route('/api/debug', methods=['GET'])
 def debug():
-    info = {
-        'status': 'debug',
-        'bd_path': BD_PATH,
-        'bd_existe': os.path.exists(BD_PATH) if BD_PATH else False,
-    }
-    
-    if BD_PATH and os.path.exists(BD_PATH):
-        info['tamaño'] = os.path.getsize(BD_PATH)
-    
-    return jsonify(info), 200
+    try:
+        db_path = get_db_path()
+        info = {
+            'status': 'ok',
+            'bd_path': db_path,
+            'bd_existe': True,
+            'tamaño': os.path.getsize(db_path)
+        }
+        return jsonify(info), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 500
 
 @app.route('/api/health', methods=['GET'])
 def health():
