@@ -104,5 +104,4 @@ def get_retroactivos():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-if __name__ == '__main__':
-    app.run(debug=False)
+# Vercel serverless - Flask app exported as 'app'
