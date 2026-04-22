@@ -14,10 +14,10 @@ __pycache__/
 .Python
 
 # Database
-*.db
+# *.db  # PERMITIR sueldos.db para trabajar
 *.db-wal
 *.db-shm
-data/
+# data/  # PERMITIR carpeta data con BD de trabajo
 
 # IDE
 .vscode/
