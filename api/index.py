@@ -44,7 +44,12 @@ def get_empleados():
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM empleados ORDER BY apellido, nombre")
+        cursor.execute("""
+            SELECT e.*, c.nombre as categoria_nombre, c.precio_dia
+            FROM empleados e
+            LEFT JOIN categorias c ON e.categoria_id = c.id
+            ORDER BY e.apellido, e.nombre
+        """)
         rows = cursor.fetchall()
         conn.close()
         return jsonify([dict(row) for row in rows]), 200
@@ -70,13 +75,11 @@ def get_quincena_detail(quincena_id):
         conn = get_connection()
         cursor = conn.cursor()
         
-        # Get quincena
         cursor.execute("SELECT * FROM quincenas WHERE id = ?", (quincena_id,))
         quincena = cursor.fetchone()
         if not quincena:
             return jsonify({'error': 'Quincena not found'}), 404
         
-        # Get liquidaciones for this quincena
         cursor.execute("""
             SELECT l.*, e.nombre, e.apellido, e.legajo, c.nombre as categoria
             FROM liquidaciones l
