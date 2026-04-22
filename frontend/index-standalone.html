@@ -142,8 +142,11 @@
                     // Cargar SQL.js
                     const SQL = await initSqlJs();
 
-                    // Cargar BD desde GitHub
-                    const response = await fetch('./sueldos.db');
+                    // Cargar BD desde GitHub (está en ../data/sueldos.db)
+                    const response = await fetch('../data/sueldos.db');
+                    if (!response.ok) {
+                        throw new Error(`No se pudo cargar BD: ${response.status}`);
+                    }
                     const buffer = await response.arrayBuffer();
                     db = new SQL.Database(new Uint8Array(buffer));
 
