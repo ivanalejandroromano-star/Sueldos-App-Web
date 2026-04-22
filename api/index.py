@@ -1,51 +1,63 @@
 """
-Backend Flask para Vercel
+Backend Flask para Vercel - con inicialización de BD desde base64
 """
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
-from pathlib import Path
+import base64
 import os
-import stat
 import traceback
 
 app = Flask(__name__)
 CORS(app)
 
-BD_PATH = '/var/task/sueldos.db'
+# ========== INICIALIZAR BD ==========
+def init_database():
+    """Descodifica sueldos.db desde base64 si es necesario"""
+    db_path = '/var/task/sueldos.db'
+    b64_path = '/var/task/sueldos.db.b64'
+    
+    print(f"[INIT] Buscando BD en {db_path}")
+    
+    # Si existe base64, descodificar
+    if os.path.exists(b64_path):
+        print(f"[INIT] Encontrado base64, descodificando...")
+        try:
+            with open(b64_path, 'r') as f:
+                b64_content = f.read()
+            
+            db_bytes = base64.b64decode(b64_content)
+            
+            with open(db_path, 'wb') as f:
+                f.write(db_bytes)
+            
+            print(f"[INIT] BD recreada: {len(db_bytes)} bytes")
+            return db_path
+        except Exception as e:
+            print(f"[ERROR] Descodificación fallida: {e}")
+    
+    # Si el archivo binario existe, usarlo
+    if os.path.exists(db_path):
+        print(f"[INIT] BD encontrada en {db_path}")
+        return db_path
+    
+    print(f"[ERROR] No se encontró BD en ninguna ubicación")
+    return None
 
-print(f"[INIT] BD_PATH: {BD_PATH}")
-print(f"[INIT] Existe: {os.path.exists(BD_PATH)}")
-
-# Verificar permisos y tamaño
-if os.path.exists(BD_PATH):
-    stat_info = os.stat(BD_PATH)
-    print(f"[INIT] Tamaño: {stat_info.st_size} bytes")
-    print(f"[INIT] Permisos: {oct(stat_info.st_mode)}")
-    print(f"[INIT] Legible: {os.access(BD_PATH, os.R_OK)}")
+BD_PATH = init_database()
 
 def get_connection():
     """Abre conexión a SQLite"""
-    if not os.path.exists(BD_PATH):
-        raise Exception(f"Archivo no existe: {BD_PATH}")
-    
-    if not os.access(BD_PATH, os.R_OK):
-        raise Exception(f"No hay permiso de lectura: {BD_PATH}")
+    if not BD_PATH or not os.path.exists(BD_PATH):
+        raise Exception(f"BD no encontrada")
     
     try:
-        # Intentar abrir con check_same_thread=False
-        conn = sqlite3.connect(f'file:{BD_PATH}?mode=ro', uri=True, timeout=10.0)
+        conn = sqlite3.connect(BD_PATH, timeout=10.0)
         conn.row_factory = sqlite3.Row
         return conn
     except Exception as e:
-        # Si falla con URI, intentar de forma normal
-        try:
-            conn = sqlite3.connect(BD_PATH, timeout=10.0)
-            conn.row_factory = sqlite3.Row
-            return conn
-        except Exception as e2:
-            raise Exception(f"Error SQLite: {str(e2)}")
+        raise Exception(f"Error conectando a BD: {str(e)}")
 
 # ============== ENDPOINTS ==============
 
@@ -54,15 +66,11 @@ def debug():
     info = {
         'status': 'debug',
         'bd_path': BD_PATH,
-        'bd_existe': os.path.exists(BD_PATH),
-        'cwd': os.getcwd(),
+        'bd_existe': os.path.exists(BD_PATH) if BD_PATH else False,
     }
     
-    if os.path.exists(BD_PATH):
-        stat_info = os.stat(BD_PATH)
-        info['tamaño'] = stat_info.st_size
-        info['legible'] = os.access(BD_PATH, os.R_OK)
-        info['permisos'] = oct(stat_info.st_mode)
+    if BD_PATH and os.path.exists(BD_PATH):
+        info['tamaño'] = os.path.getsize(BD_PATH)
     
     return jsonify(info), 200
 
@@ -78,7 +86,7 @@ def health():
         return jsonify({'status': 'ok', 'empleados': count}), 200
     except Exception as e:
         print(f"[ERROR] health: {e}")
-        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/empleados', methods=['GET'])
 def get_empleados():
@@ -92,7 +100,6 @@ def get_empleados():
         empleados = [dict(row) for row in rows]
         return jsonify(empleados), 200
     except Exception as e:
-        print(f"[ERROR] empleados: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/quincenas', methods=['GET'])
