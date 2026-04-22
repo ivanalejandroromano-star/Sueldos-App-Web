@@ -5,6 +5,7 @@ from flask_cors import CORS
 import sqlite3
 import base64
 import os
+import json
 
 app = Flask(__name__)
 CORS(app)
@@ -39,22 +40,86 @@ def health():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/empleados', methods=['GET'])
-def get_empleados():
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT e.*, c.nombre as categoria_nombre, c.precio_dia
-            FROM empleados e
-            LEFT JOIN categorias c ON e.categoria_id = c.id
-            ORDER BY e.apellido, e.nombre
-        """)
-        rows = cursor.fetchall()
-        conn.close()
-        return jsonify([dict(row) for row in rows]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/api/empleados', methods=['GET', 'POST'])
+def empleados():
+    if request.method == 'GET':
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT e.*, c.nombre as categoria_nombre, c.precio_dia
+                FROM empleados e
+                LEFT JOIN categorias c ON e.categoria_id = c.id
+                ORDER BY e.apellido, e.nombre
+            """)
+            rows = cursor.fetchall()
+            conn.close()
+            return jsonify([dict(row) for row in rows]), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO empleados (nombre, apellido, legajo, cuil, categoria_id, fecha_alta, fecha_baja)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.get('nombre'),
+                data.get('apellido'),
+                data.get('legajo'),
+                data.get('cuil', ''),
+                data.get('categoria_id'),
+                data.get('fecha_alta'),
+                data.get('fecha_baja')
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 201
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/empleados/<int:emp_id>', methods=['PUT', 'DELETE'])
+def update_empleado(emp_id):
+    if request.method == 'PUT':
+        try:
+            data = request.get_json()
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE empleados 
+                SET nombre=?, apellido=?, legajo=?, cuil=?, categoria_id=?, fecha_alta=?, fecha_baja=?
+                WHERE id=?
+            """, (
+                data.get('nombre'),
+                data.get('apellido'),
+                data.get('legajo'),
+                data.get('cuil'),
+                data.get('categoria_id'),
+                data.get('fecha_alta'),
+                data.get('fecha_baja'),
+                emp_id
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'DELETE':
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM empleados WHERE id=?", (emp_id,))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
 @app.route('/api/quincenas', methods=['GET'])
 def get_quincenas():
@@ -98,52 +163,297 @@ def get_quincena_detail(quincena_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/categorias', methods=['GET'])
-def get_categorias():
+@app.route('/api/liquidaciones/<int:liq_id>', methods=['PUT'])
+def update_liquidacion(liq_id):
     try:
+        data = request.get_json()
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM categorias ORDER BY nombre")
-        rows = cursor.fetchall()
+        
+        cursor.execute("""
+            UPDATE liquidaciones 
+            SET dias_trabajados=?, sueldo_bruto=?, recibo_a=?, hab_s_desc=?, recibo_b=?, cinta_billete=?
+            WHERE id=?
+        """, (
+            data.get('dias_trabajados', 0),
+            data.get('sueldo_bruto', 0),
+            data.get('recibo_a', 0),
+            data.get('hab_s_desc', 0),
+            data.get('recibo_b', 0),
+            data.get('cinta_billete', 0),
+            liq_id
+        ))
+        conn.commit()
         conn.close()
-        return jsonify([dict(row) for row in rows]), 200
+        return jsonify({'success': True}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/deudas', methods=['GET'])
-def get_deudas():
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM deudas")
-        rows = cursor.fetchall()
-        conn.close()
-        return jsonify([dict(row) for row in rows]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/api/categorias', methods=['GET', 'POST'])
+def categorias():
+    if request.method == 'GET':
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM categorias ORDER BY nombre")
+            rows = cursor.fetchall()
+            conn.close()
+            return jsonify([dict(row) for row in rows]), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO categorias (nombre, precio_dia, vigente_desde, vigente_hasta)
+                VALUES (?, ?, ?, ?)
+            """, (
+                data.get('nombre'),
+                data.get('precio_dia'),
+                data.get('vigente_desde'),
+                data.get('vigente_hasta')
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 201
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
-@app.route('/api/pasajes', methods=['GET'])
-def get_pasajes():
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM pasajes_programados ORDER BY id DESC")
-        rows = cursor.fetchall()
-        conn.close()
-        return jsonify([dict(row) for row in rows]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/api/deudas', methods=['GET', 'POST'])
+def deudas():
+    if request.method == 'GET':
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM deudas ORDER BY id DESC")
+            rows = cursor.fetchall()
+            conn.close()
+            return jsonify([dict(row) for row in rows]), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO deudas (empleado_id, motivo, monto_total, cuota_por_quincena, saldo_pendiente, activa, tipo_cobro, porcentaje_variable, quincena_inicio_id, fecha_alta)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.get('empleado_id'),
+                data.get('motivo'),
+                data.get('monto_total'),
+                data.get('cuota_por_quincena'),
+                data.get('saldo_pendiente', data.get('monto_total')),
+                data.get('activa', 1),
+                data.get('tipo_cobro', 'fijo'),
+                data.get('porcentaje_variable'),
+                data.get('quincena_inicio_id'),
+                data.get('fecha_alta')
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 201
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
-@app.route('/api/retroactivos', methods=['GET'])
-def get_retroactivos():
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM retroactivos_programados ORDER BY id DESC")
-        rows = cursor.fetchall()
-        conn.close()
-        return jsonify([dict(row) for row in rows]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/api/deudas/<int:deuda_id>', methods=['PUT', 'DELETE'])
+def update_deuda(deuda_id):
+    if request.method == 'PUT':
+        try:
+            data = request.get_json()
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE deudas 
+                SET empleado_id=?, motivo=?, monto_total=?, cuota_por_quincena=?, saldo_pendiente=?, activa=?, tipo_cobro=?, porcentaje_variable=?, quincena_inicio_id=?
+                WHERE id=?
+            """, (
+                data.get('empleado_id'),
+                data.get('motivo'),
+                data.get('monto_total'),
+                data.get('cuota_por_quincena'),
+                data.get('saldo_pendiente'),
+                data.get('activa'),
+                data.get('tipo_cobro'),
+                data.get('porcentaje_variable'),
+                data.get('quincena_inicio_id'),
+                deuda_id
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'DELETE':
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM deudas WHERE id=?", (deuda_id,))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/pasajes', methods=['GET', 'POST'])
+def pasajes():
+    if request.method == 'GET':
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM pasajes_programados ORDER BY id DESC")
+            rows = cursor.fetchall()
+            conn.close()
+            return jsonify([dict(row) for row in rows]), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO pasajes_programados (empleado_id, monto, fecha_pago, fecha_viaje, quincena_pago_id, activo, fecha_creacion)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.get('empleado_id'),
+                data.get('monto'),
+                data.get('fecha_pago'),
+                data.get('fecha_viaje'),
+                data.get('quincena_pago_id'),
+                data.get('activo', 1),
+                data.get('fecha_creacion')
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 201
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/pasajes/<int:pasaje_id>', methods=['PUT', 'DELETE'])
+def update_pasaje(pasaje_id):
+    if request.method == 'PUT':
+        try:
+            data = request.get_json()
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE pasajes_programados 
+                SET empleado_id=?, monto=?, fecha_pago=?, fecha_viaje=?, quincena_pago_id=?, activo=?
+                WHERE id=?
+            """, (
+                data.get('empleado_id'),
+                data.get('monto'),
+                data.get('fecha_pago'),
+                data.get('fecha_viaje'),
+                data.get('quincena_pago_id'),
+                data.get('activo'),
+                pasaje_id
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'DELETE':
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM pasajes_programados WHERE id=?", (pasaje_id,))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/retroactivos', methods=['GET', 'POST'])
+def retroactivos():
+    if request.method == 'GET':
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM retroactivos_programados ORDER BY id DESC")
+            rows = cursor.fetchall()
+            conn.close()
+            return jsonify([dict(row) for row in rows]), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO retroactivos_programados (empleado_id, monto_total, cantidad_meses, monto_por_mes, saldo_pendiente, activo, quincena_inicio_id, fecha_creacion)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.get('empleado_id'),
+                data.get('monto_total'),
+                data.get('cantidad_meses'),
+                data.get('monto_por_mes'),
+                data.get('saldo_pendiente', data.get('monto_total')),
+                data.get('activo', 1),
+                data.get('quincena_inicio_id'),
+                data.get('fecha_creacion')
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 201
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/retroactivos/<int:retro_id>', methods=['PUT', 'DELETE'])
+def update_retroactivo(retro_id):
+    if request.method == 'PUT':
+        try:
+            data = request.get_json()
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE retroactivos_programados 
+                SET empleado_id=?, monto_total=?, cantidad_meses=?, monto_por_mes=?, saldo_pendiente=?, activo=?, quincena_inicio_id=?
+                WHERE id=?
+            """, (
+                data.get('empleado_id'),
+                data.get('monto_total'),
+                data.get('cantidad_meses'),
+                data.get('monto_por_mes'),
+                data.get('saldo_pendiente'),
+                data.get('activo'),
+                data.get('quincena_inicio_id'),
+                retro_id
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'DELETE':
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM retroactivos_programados WHERE id=?", (retro_id,))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
 # Vercel serverless - Flask app exported as 'app'
