@@ -58,9 +58,71 @@ def cambiar_db_obra(nombre_obra):
             return False
 
     set_db_path(db_path)
+    init_db()  # Asegurar que las tablas existan
     estado['db_path'] = db_path
     estado['obra_actual'] = nombre_obra
+    print(f"[DEBUG] Inicializada BD para obra: {nombre_obra} ({db_path})")
     return True
+
+# ============== RUTAS: DEBUG ==============
+
+@app.route('/api/debug/retroactivos/<int:quincena_id>/<int:empleado_id>', methods=['GET'])
+def debug_retroactivos(quincena_id, empleado_id):
+    """Debug endpoint para ver retroactivos de un empleado en una quincena"""
+    try:
+        db = obtener_db()
+
+        # Obtener índices de quincenas
+        quincenas_ordenadas = db.conn.execute(
+            "SELECT id, periodo FROM quincenas ORDER BY id ASC"
+        ).fetchall()
+        quincena_indices = {q['id']: idx for idx, q in enumerate(quincenas_ordenadas)}
+        indice_quincena_actual = quincena_indices.get(quincena_id, -1)
+
+        # Obtener retroactivos activos del empleado
+        retroactivos = db.conn.execute(
+            "SELECT * FROM retroactivos_programados WHERE empleado_id = ? AND activo = 1",
+            (empleado_id,)
+        ).fetchall()
+
+        info = {
+            'quincena_id': quincena_id,
+            'quincena_periodo': None,
+            'indice_quincena': indice_quincena_actual,
+            'empleado_id': empleado_id,
+            'retroactivos_encontrados': len(retroactivos),
+            'retroactivos': []
+        }
+
+        # Buscar el período de la quincena
+        for q in quincenas_ordenadas:
+            if q['id'] == quincena_id:
+                info['quincena_periodo'] = q['periodo']
+                break
+
+        for retro in retroactivos:
+            indice_inicio = quincena_indices.get(retro['quincena_inicio_id'], -1)
+            quincenas_desde_inicio = indice_quincena_actual - indice_inicio + 1
+            aplica = (indice_inicio >= 0 and indice_quincena_actual >= indice_inicio and
+                     quincenas_desde_inicio <= retro['cantidad_meses'])
+
+            cuota = int(retro['monto_total'] / retro['cantidad_meses']) if retro['cantidad_meses'] > 0 else 0
+
+            info['retroactivos'].append({
+                'id': retro['id'],
+                'monto_total': retro['monto_total'],
+                'cantidad_meses': retro['cantidad_meses'],
+                'cuota_por_quincena': cuota,
+                'quincena_inicio_id': retro['quincena_inicio_id'],
+                'indice_inicio': indice_inicio,
+                'quincenas_desde_inicio': quincenas_desde_inicio,
+                'aplica': aplica
+            })
+
+        db.close()
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ============== RUTAS: OBRAS ==============
 
@@ -94,7 +156,9 @@ def cambiar_obra():
 
         obra = obras[obra_id]
         set_db_path(Path(obra['path']))
+        init_db()  # Asegurar que las tablas existan
         estado['obra_actual'] = obra['nombre']
+        print(f"[DEBUG] Obra cambiada a: {obra['nombre']} ({obra['path']})")
 
         return jsonify({
             'id': obra_id,
@@ -102,6 +166,7 @@ def cambiar_obra():
             'message': f"Obra cambiada a: {obra['nombre']}"
         })
     except Exception as e:
+        print(f"[ERROR] Cambiar obra: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/obras/crear', methods=['POST'])
@@ -177,10 +242,17 @@ def get_quincena(quincena_id):
 
         # Obtener todas las quincenas ordenadas para calcular índices
         quincenas_ordenadas = db.conn.execute(
-            "SELECT id FROM quincenas ORDER BY periodo ASC"
+            "SELECT id, periodo FROM quincenas ORDER BY id ASC"
         ).fetchall()
         quincena_indices = {q['id']: idx for idx, q in enumerate(quincenas_ordenadas)}
         indice_quincena_actual = quincena_indices.get(quincena_id, -1)
+
+        # Debug: mostrar las quincenas ordenadas
+        print(f"\n[DEBUG] get_quincena: quincena_id={quincena_id}")
+        print(f"[DEBUG]   Quincenas ordenadas ({len(quincenas_ordenadas)} total):")
+        for q in quincenas_ordenadas[:10]:  # Mostrar primeras 10
+            print(f"[DEBUG]     idx={quincena_indices[q['id']]}, id={q['id']}, periodo={q['periodo']}")
+        print(f"[DEBUG]   Quincena actual: id={quincena_id}, indice={indice_quincena_actual}")
 
         # Enriquecer con datos de empleado
         liq_completas = []
@@ -210,6 +282,7 @@ def get_quincena(quincena_id):
             pasaje = db.get_pasaje(liq['id'])
 
             # Calcular retroactivos que aplican a esta quincena
+            # Lógica: Si quincena_inicio <= quincena_actual < quincena_inicio + cantidad_meses
             retroactivo_total = 0
             try:
                 retroactivos_activos = db.conn.execute(
@@ -218,16 +291,21 @@ def get_quincena(quincena_id):
                 ).fetchall()
 
                 for retro in retroactivos_activos:
-                    indice_inicio = quincena_indices.get(retro['quincena_inicio_id'], -1)
-                    # Verificar si esta quincena está en el rango del retroactivo
-                    if indice_inicio >= 0 and indice_quincena_actual >= indice_inicio:
-                        quincenas_desde_inicio = indice_quincena_actual - indice_inicio + 1
-                        if quincenas_desde_inicio <= retro['cantidad_meses']:
-                            # Esta quincena aplica para este retroactivo
-                            cuota_retro = int(retro['monto_total'] / retro['cantidad_meses'])
-                            retroactivo_total += cuota_retro
-            except Exception:
-                pass
+                    quincena_inicio = retro['quincena_inicio_id']
+                    cantidad_meses = retro['cantidad_meses']
+
+                    # Verificar si esta quincena está dentro del rango de pago
+                    # Rango válido: desde quincena_inicio hasta quincena_inicio + cantidad_meses - 1
+                    if quincena_inicio is not None and quincena_id >= quincena_inicio and quincena_id < quincena_inicio + cantidad_meses:
+                        monto_por_mes = retro['monto_por_mes']
+                        retroactivo_total += monto_por_mes
+                        print(f"[DEBUG] Retroactivo ID {retro['id']}: ✓ APLICADO (rango {quincena_inicio}-{quincena_inicio + cantidad_meses - 1}, q_actual={quincena_id}), cuota={centavos_a_pesos(monto_por_mes)}")
+                    else:
+                        print(f"[DEBUG] Retroactivo ID {retro['id']}: ✗ Fuera de rango (inicio={quincena_inicio}, meses={cantidad_meses}, rango_final={quincena_inicio + cantidad_meses - 1 if quincena_inicio else '?'}, q_actual={quincena_id})")
+            except Exception as e:
+                print(f"[ERROR] Calculando retroactivos: {e}")
+                import traceback
+                traceback.print_exc()
 
             liq_completa = {
                 'id': liq['id'],
@@ -325,41 +403,34 @@ def cerrar_quincena(quincena_id):
             except Exception:
                 pass  # Si la tabla no existe o hay error, continuar
 
-            # Actualizar retroactivos: solo si la quincena actual está en el rango del retroactivo
+            # Aplicar cuotas de retroactivos programados
+            # Lógica: Si quincena_inicio <= quincena_actual < quincena_inicio + cantidad_meses, descuenta una cuota
             try:
-                # Obtener todas las quincenas ordenadas
-                quincenas_ordenadas = db.conn.execute(
-                    "SELECT id FROM quincenas ORDER BY periodo ASC"
-                ).fetchall()
-
-                quincena_indices = {q['id']: idx for idx, q in enumerate(quincenas_ordenadas)}
-                indice_quincena_actual = quincena_indices.get(quincena_id, -1)
-
                 retroactivos = db.conn.execute(
                     "SELECT * FROM retroactivos_programados WHERE empleado_id = ? AND activo = 1 ORDER BY fecha_creacion DESC",
                     (empleado_id,)
                 ).fetchall()
 
                 for retro in retroactivos:
-                    indice_inicio = quincena_indices.get(retro['quincena_inicio_id'], -1)
+                    quincena_inicio = retro['quincena_inicio_id']
+                    cantidad_meses = retro['cantidad_meses']
 
-                    # Verificar si la quincena actual está dentro del rango del retroactivo
-                    quincenas_pendientes = indice_quincena_actual - indice_inicio + 1
+                    # Verificar si esta quincena está dentro del rango de pago
+                    if quincena_inicio is not None and quincena_id >= quincena_inicio and quincena_id < quincena_inicio + cantidad_meses:
+                        monto_por_mes = retro['monto_por_mes']
+                        nuevo_saldo = retro['saldo_pendiente'] - monto_por_mes
 
-                    if indice_inicio >= 0 and indice_quincena_actual >= indice_inicio and quincenas_pendientes <= retro['cantidad_meses']:
-                        # Esta quincena aplica para este retroactivo
-                        cuota_retro = int(retro['monto_total'] / retro['cantidad_meses']) if retro['cantidad_meses'] > 0 else 0
-                        nuevo_saldo_retro = retro['saldo_pendiente'] - cuota_retro
+                        # Si el retroactivo se completó, marca como inactivo
+                        activo = 1 if nuevo_saldo > 0 else 0
 
-                        # Solo marcar como inactivo si todas las cuotas están pagadas
-                        activo_retro = 1 if nuevo_saldo_retro > 0 else 0
-
-                        print(f"[DEBUG] Retroactivo ID {retro['id']}: quincena_inicio_idx={indice_inicio}, quincena_actual_idx={indice_quincena_actual}, cuota={cuota_retro}, nuevo_saldo={max(0, nuevo_saldo_retro)}, activo={activo_retro}")
+                        print(f"[DEBUG] Retroactivo ID {retro['id']}: ✓ DESCUENTO (rango {quincena_inicio}-{quincena_inicio + cantidad_meses - 1}), cuota={centavos_a_pesos(monto_por_mes)}, saldo {centavos_a_pesos(retro['saldo_pendiente'])} → {centavos_a_pesos(max(0, nuevo_saldo))}, activo={activo}")
 
                         db.conn.execute(
                             "UPDATE retroactivos_programados SET saldo_pendiente = ?, activo = ? WHERE id = ?",
-                            (max(0, nuevo_saldo_retro), activo_retro, retro['id'])
+                            (max(0, nuevo_saldo), activo, retro['id'])
                         )
+                    else:
+                        print(f"[DEBUG] Retroactivo ID {retro['id']}: ✗ Fuera de rango (no aplica en q_id={quincena_id})")
             except Exception as e:
                 print(f"[ERROR] Actualizando retroactivos: {e}")
 
@@ -887,6 +958,8 @@ def crear_retroactivo():
         monto_total = monto_por_mes * cantidad_meses
         quincena_inicio_id = datos.get('quincena_inicio_id')
 
+        print(f"[DEBUG CREAR] Retroactivo: empleado_id={empleado_id}, monto_por_mes={monto_por_mes} ({centavos_a_pesos(monto_por_mes)}), cantidad_meses={cantidad_meses}, monto_total={monto_total} ({centavos_a_pesos(monto_total)}), quincena_inicio_id={quincena_inicio_id}")
+
         cursor = db.conn.cursor()
         cursor.execute(
             """INSERT INTO retroactivos_programados
@@ -898,6 +971,9 @@ def crear_retroactivo():
         )
         db.conn.commit()
         retroactivo_id = cursor.lastrowid
+
+        print(f"[DEBUG CREAR] ✓ Retroactivo ID {retroactivo_id} creado correctamente")
+
         db.close()
 
         return jsonify({
@@ -905,6 +981,9 @@ def crear_retroactivo():
             'message': 'Retroactivo creado correctamente'
         })
     except Exception as e:
+        print(f"[ERROR CREAR] {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/retroactivos/<int:retroactivo_id>', methods=['PUT'])
@@ -1191,6 +1270,8 @@ def generar_pdfs(quincena_id):
         quincena_id = quincena['id']
         periodo = quincena['periodo']
 
+        print(f"[DEBUG] Generando PDFs para quincena_id={quincena_id}, periodo='{periodo}'")
+
         # Obtener liquidaciones
         liquidaciones = db.get_liquidaciones(quincena_id)
         if not liquidaciones:
@@ -1320,12 +1401,19 @@ def generar_pdfs(quincena_id):
             db.close()
 
             # Retornar ZIP como descarga
-            return send_file(
+            filename = f'{periodo}.zip'
+            print(f"[DEBUG] Enviando ZIP con nombre: {filename}")
+
+            response = send_file(
                 zip_buffer,
                 mimetype='application/zip',
                 as_attachment=True,
-                download_name=f'PDFs_{periodo}.zip'
+                download_name=filename
             )
+            # Agregar headers manualmente
+            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+            response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
+            return response
 
         except Exception as e:
             db.close()
@@ -1366,13 +1454,16 @@ if __name__ == '__main__':
     # Inicializar con la obra "Tandil"
     try:
         cambiar_db_obra('Tandil')
-    except:
+    except Exception as e:
+        print(f"[DEBUG] No se encontró obra 'Tandil': {e}")
         # Si falla, intentar con sueldos.db
         try:
             legacy_path = _get_obras_folder().parent / "sueldos.db"
             set_db_path(legacy_path)
+            init_db()
             estado['obra_actual'] = 'sueldos'
-        except:
-            print("Advertencia: No se encontró BD de referencia")
+            print(f"[DEBUG] BD inicializada desde: {legacy_path}")
+        except Exception as e2:
+            print(f"[ERROR] No se encontró BD de referencia: {e2}")
 
     app.run(debug=True, host='0.0.0.0', port=5000)

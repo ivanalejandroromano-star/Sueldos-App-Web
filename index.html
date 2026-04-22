@@ -2161,10 +2161,15 @@
 
                             // Extraer nombre del archivo de headers si disponible
                             const contentDisposition = respuesta.headers.get('content-disposition');
+                            console.log('[DEBUG] Content-Disposition header:', contentDisposition);
                             let nombreArchivo = 'PDFs.zip';
                             if (contentDisposition) {
                                 const matches = contentDisposition.match(/filename="?([^"]+)"?/);
-                                if (matches) nombreArchivo = matches[1];
+                                console.log('[DEBUG] Matches:', matches);
+                                if (matches && matches[1]) {
+                                    nombreArchivo = matches[1];
+                                    console.log('[DEBUG] Nombre extraído:', nombreArchivo);
+                                }
                             }
 
                             // Crear descarga

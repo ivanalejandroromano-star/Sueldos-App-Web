@@ -303,11 +303,17 @@ obras                   (carpeta con múltiples .db files)
 - ✅ Logo not displaying (path was wrong, fixed to `logo.png` in frontend folder)
 - ✅ Retroactivos saldo_pendiente not updating (now correctly subtracts one cuota per closed fortnight)
 - ✅ Retroactivos "Quincena Inicio" not showing in "Todos los Empleados" view (fixed with `obtenerPeriodoQuincena()`)
+- ✅ Database initialization: `init_db()` now called when switching obras at runtime
+- ✅ Retroactivos visibility: Retroactivos marked as `activo=1` now appear in Quincena view
+- ✅ **Quincenas ordering bug**: Changed from `ORDER BY periodo` to `ORDER BY id` (was sorting alphabetically)
+- ✅ Retroactivos range check: Now correctly applies only within valid quincena range
+- ✅ "Ya Pagado" calculation: Now correctly shows `monto_total - saldo_pendiente`
+- ✅ PDF download filename: Now uses quincena period (e.g., `1Q-ABR-2026.zip`)
+- ✅ CORS header exposure: Added `Access-Control-Expose-Headers` for filename extraction
 
 ### Outstanding
 
-- **Retroactivo display in Quincena**: "Retroactivos" column now shows correct cuota for applicable fortnights
-- **State transitions**: Retroactivo Estado correctly changes "Activo" → "Pago" when all cuotas paid
+- None currently identified. All major features working correctly.
 
 ## Testing Workflow
 
@@ -327,18 +333,156 @@ obras                   (carpeta con múltiples .db files)
 ## Debugging Tips
 
 ### Backend Logs
-- Check `/tmp/backend.log` for Flask debug output
+- Check console output when running `python backend/app.py`
 - `[DEBUG]` lines show retroactivo calculations during fortnight close
 - `[ERROR]` lines indicate exceptions (database, API)
+- Key debug outputs:
+  - `[DEBUG] Obra cambiada a:` — indicates which database is being used
+  - `[DEBUG] get_quincena:` — shows quincena ordering and indices
+  - `[DEBUG] Retroactivo ID X:` — traces range check logic
+
+### Debugging Retroactivos Specifically
+
+**Check if retroactivos are active**:
+```bash
+python3 << 'EOF'
+import sqlite3
+conn = sqlite3.connect('/home/ivan/PROYECTOS/Sueldos/sueldos_app/data/obras/Tandil.db')
+cursor = conn.cursor()
+cursor.execute("SELECT id, empleado_id, activo, saldo_pendiente FROM retroactivos_programados")
+for row in cursor.fetchall():
+    print(f"ID {row[0]}: emp={row[1]}, activo={row[2]}, saldo={row[3]}")
+conn.close()
+EOF
+```
+
+**Use debug endpoint** (after starting backend):
+```
+http://localhost:5000/api/debug/retroactivos/<quincena_id>/<empleado_id>
+```
+Example: `http://localhost:5000/api/debug/retroactivos/6/1` shows retroactivos for employee 1 in fortnight 6 (2Q-MAR-2026)
+
+**Reactivate inactive retroactivos**:
+```bash
+python3 << 'EOF'
+import sqlite3
+conn = sqlite3.connect('/home/ivan/PROYECTOS/Sueldos/sueldos_app/data/obras/Tandil.db')
+cursor = conn.cursor()
+cursor.execute("UPDATE retroactivos_programados SET activo = 1 WHERE saldo_pendiente > 0")
+conn.commit()
+cursor.execute("SELECT COUNT(*) FROM retroactivos_programados WHERE activo = 1")
+print(f"Activated: {cursor.fetchone()[0]}")
+conn.close()
+EOF
+```
 
 ### Frontend Issues
 - Use browser DevTools Console (F12) for Alpine.js state inspection
 - Network tab shows API requests/responses (centavos)
 - Check CORS errors if backend is unavailable
 
+### Database Location Issues
+
+**IMPORTANT**: Web app uses database from `/home/ivan/PROYECTOS/Sueldos/sueldos_app/data/obras/`
+
+The web app backend imports from the desktop project:
+```python
+sys.path.insert(0, '/home/ivan/PROYECTOS/Sueldos')
+from sueldos_app.database import ...
+```
+
+This means:
+- ✅ Using same database as desktop app (Tandil.db, San_Justo.db, etc.)
+- ✅ No database duplication
+- ✅ Changes in desktop app are reflected in web app
+
+**Verify database location**:
+```bash
+python3 -c "
+import sys
+sys.path.insert(0, '/home/ivan/PROYECTOS/Sueldos')
+from sueldos_app.database import _get_base_folder
+print('Base folder:', _get_base_folder())
+"
+```
+
 ### Database Issues
-- Delete `data/sueldos.db` to force recreation with current schema
-- WAL mode enabled: check for `.db-wal` and `.db-shm` files
+- Don't delete `data/sueldos.db` (web app doesn't use it; uses desktop app's database)
+- WAL mode enabled: check for `.db-wal` and `.db-shm` files in `/home/ivan/PROYECTOS/Sueldos/sueldos_app/data/obras/`
+- If schema changes, delete `Tandil.db` to force recreation on next backend start
+
+## Architectural Patterns & Implementation Rules
+
+### Frontend: Single-File SPA (index.html)
+The entire app is one HTML file with embedded CSS and JavaScript (Alpine.js).
+
+**Key Pattern**: Alpine.js `x-data="app()"` returns an object with all state and methods:
+```javascript
+// Bad: Creating new data structures dynamically
+mostrarDialogoEditar: false,  // Added later
+
+// Good: Pre-declare all state in app() return
+mostrarDialogoEditar: false,
+mostrarDialogoNuevo: false,
+formEdit: { ... }
+```
+
+**Reactivity Rule**: All reactive data must be declared at app initialization. Adding state later breaks Alpine's reactivity.
+
+### Backend: Flask Routes Follow Path Convention
+All routes start with `/api/` and mirror database operations:
+- `GET /api/deudas/1` → read
+- `POST /api/deudas` → create
+- `PUT /api/deudas/1` → update
+- `DELETE /api/deudas/1` → delete
+
+**Error Handling**: Always wrap in try/except, return JSON with `error` key:
+```python
+try:
+    # operation
+except Exception as e:
+    print(f"[ERROR] Operation: {e}")
+    return jsonify({'error': str(e)}), 500
+```
+
+### Monetary Calculations: Always Centavos
+- **Rule**: Never use floats for money. Always integers (centavos).
+- **Frontend**: Multiply by 100 before sending to backend
+- **Backend**: Divide by 100 only when displaying/formatting
+- **Database**: Store as INTEGER
+
+**Critical**: If multiplying by 100 twice or dividing twice, fix BOTH places.
+
+### Synchronization: Frontend ↔ Backend
+When closing a fortnight or updating data:
+1. Frontend sends request to `/api/quincenas/<id>/cerrar`
+2. Backend applies all changes (deudas, pasajes, retroactivos)
+3. Backend commits to database
+4. Frontend reloads affected arrays (`cargarDeudas()`, `cargarPasajes()`, etc.)
+
+**Don't** assume frontend state is consistent after API call — always reload data.
+
+## Development Workflow: Making Changes
+
+### When Adding a Feature
+1. **Check desktop app first** (`/home/ivan/PROYECTOS/Sueldos/`)
+2. **Match the logic exactly** (same formulas, same order, same colors)
+3. **Add to both tabs** (Por Empleado + Todos los Empleados if applicable)
+4. **Test in both views** before considering done
+
+### When Fixing a Bug
+1. **Reproduce in web app**
+2. **Verify if same bug exists in desktop app**
+3. **Fix in one place, sync to the other**
+4. **Add debug logging** if conditions are complex
+5. **Restart backend** to pick up changes (important!)
+
+### Common Cache Issue (WSL)
+```bash
+# When changes don't appear after editing Python
+find . -type d -name __pycache__ -exec rm -rf {} +
+find . -type f -name "*.pyc" -delete
+```
 
 ## Version History
 
@@ -348,4 +492,11 @@ obras                   (carpeta con múltiples .db files)
 | 2026-04-22 | Retroactivos architectural change (multi-fortnight distribution) |
 | 2026-04-22 | Pasaje/Retroactivo double-multiplication bug fixed |
 | 2026-04-22 | Logo integration, "Ya Pagado" column added to deudas |
+| 2026-04-22 | Database initialization fixed; retroactivos debug endpoint added |
+| 2026-04-22 | **CRITICAL FIX**: Quincenas ordering changed from `ORDER BY periodo` to `ORDER BY id` (was sorting alphabetically, breaking all range calculations) |
+| 2026-04-22 | Retroactivos range validation: only applies within `quincena_inicio <= id < quincena_inicio + cantidad_meses` |
+| 2026-04-22 | "Ya Pagado" and "Falta Pagar" now correctly calculated as `monto_total - saldo_pendiente` |
+| 2026-04-22 | PDF download filename now uses quincena period (e.g., `1Q-ABR-2026.zip` instead of `PDFs.zip`) |
+| 2026-04-22 | Fixed CORS issue: added `Access-Control-Expose-Headers: Content-Disposition` for filename extraction |
+| 2026-04-22 | Frontend debug logging added for PDF download name extraction |
 
