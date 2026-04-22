@@ -1,43 +1,24 @@
-# Virtual Environment
-venv/
-env/
-ENV/
-*.egg-info/
-dist/
-build/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-
-# Database
-# *.db  # PERMITIR sueldos.db para trabajar
-*.db-wal
-*.db-shm
-# data/  # PERMITIR carpeta data con BD de trabajo
+# Vercel
+.vercel
+.vercel_build_output
 
 # IDE
-.vscode/
-.idea/
+.vscode
+.idea
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Environment variables
+# Python
+venv/
+__pycache__
+*.pyc
 .env
-.env.local
 
-# Logs
-*.log
-/tmp/
-
-# Output
+# Otros
 output/
-/obras/
+*.log
+node_modules/

@@ -1,0 +1,22 @@
+{
+  "name": "Sueldos App",
+  "version": 2,
+  "public": true,
+  "buildCommand": "echo 'No build needed'",
+  "outputDirectory": ".",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
