@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sueldos App - Gestión de Nómina</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+    <style>
+        :root {
+            --color-primary: #1a1a1a;
+            --color-secondary: #E8DCC8;
+            --color-accent: #D4C5B0;
+        }
+
+        body {
+            background-color: #f5f3f0;
+            color: #1a1a1a;
+        }
+
+        .header-bg {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        }
+
+        .btn-primary {
+            background-color: #1a1a1a;
+            color: #E8DCC8;
+            border: 2px solid #1a1a1a;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: transparent;
+            color: #1a1a1a;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background-color: #E8DCC8;
+            color: #1a1a1a;
+            border: 2px solid #E8DCC8;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #D4C5B0;
+            border-color: #D4C5B0;
+        }
+
+        .btn-secondary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-success {
+            background-color: #16a34a;
+            color: white;
+            border: 2px solid #16a34a;
+            transition: all 0.3s ease;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background-color: #15803d;
+            border-color: #15803d;
+        }
+
+        .btn-danger {
+            background-color: #dc2626;
+            color: white;
+            border: 2px solid #dc2626;
+            transition: all 0.3s ease;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background-color: #b91c1c;
+            border-color: #b91c1c;
+        }
+
+        .card-shadow {
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .accent-text {
+            color: #E8DCC8;
+        }
+
+        .accent-bg {
+            background-color: #E8DCC8;
+        }
+
+        input, select, textarea {
+            border: 2px solid #D4C5B0 !important;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: #1a1a1a !important;
+            outline: none;
+        }
+
+        .sidebar {
+            background-color: #f9f6f3;
+            border-right: 2px solid #D4C5B0;
+        }
+
+        .sidebar-btn {
+            border-left: 4px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-btn:hover {
+            background-color: #e8e5e0;
+            border-left-color: #E8DCC8;
+        }
+
+        .sidebar-btn.active {
+            background-color: #E8DCC8;
+            border-left-color: #1a1a1a;
+            color: #1a1a1a;
+            font-weight: bold;
+        }
+
+        .table-row:hover {
+            background-color: #f9f6f3;
+        }
+
+        .table-header {
+            background-color: #f0ebe5;
+            border-bottom: 2px solid #D4C5B0;
+        }
+
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            border: 2px solid #D4C5B0;
+            border-radius: 8px;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, #16a34a 0%, #16a34a var(--progress), #D4C5B0 var(--progress), #D4C5B0 100%);
+        }
+
+        .alert-error {
+            background-color: #fee2e2;
+            border-left: 4px solid #dc2626;
+            color: #991b1b;
+        }
+
+        .alert-success {
+            background-color: #dcfce7;
+            border-left: 4px solid #16a34a;
+            color: #166534;
+        }
+
+        .alert-warning {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            color: #92400e;
+        }
+    </style>
+</head>
+<body>
+    <div x-data="app()" x-init="init()" class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="header-bg text-white sticky top-0 z-50 card-shadow">
+            <div class="w-full mx-auto px-2 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <img src="logo.png" alt="Logo" class="h-16 w-auto object-contain" style="max-width: 80px; filter: brightness(1.2);">
+                        <div>
+                            <h1 class="text-2xl font-bold accent-text">Sueldos App</h1>
+                            <p class="text-sm text-gray-300" x-text="`Obra: ${obraActual}`"></p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <button @click="abrirSelectorObras()" class="btn-secondary font-bold py-2 px-4 rounded-lg text-sm">
+                            🏗️ Cambiar Obra
+                        </button>
+                        <button @click="logout()" class="btn-secondary font-bold py-2 px-4 rounded-lg text-sm">
+                            Salir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenedor Principal -->
+        <div class="flex flex-1">
+            <!-- Sidebar -->
+            <aside class="w-56 sidebar">
+                <nav class="p-4 space-y-2">
+                    <button @click="cambiarVista('quincena')" :class="vistaActual === 'quincena' ? 'sidebar-btn active' : 'sidebar-btn'" class="w-full text-left px-4 py-3 rounded-lg">
+                        📊 Quincena
+                    </button>
+                    <button @click="cambiarVista('empleados')" :class="vistaActual === 'empleados' ? 'sidebar-btn active' : 'sidebar-btn'" class="w-full text-left px-4 py-3 rounded-lg">
+                        👥 Empleados
+                    </button>
+                    <button @click="cambiarVista('deudas')" :class="vistaActual === 'deudas' ? 'sidebar-btn active' : 'sidebar-btn'" class="w-full text-left px-4 py-3 rounded-lg">
+                        💰 Deudas
+                    </button>
+                    <button @click="cambiarVista('pasajes')" :class="vistaActual === 'pasajes' ? 'sidebar-btn active' : 'sidebar-btn'" class="w-full text-left px-4 py-3 rounded-lg">
+                        🚕 Pasajes
+                    </button>
+                    <button @click="cambiarVista('retroactivos')" :class="vistaActual === 'retroactivos' ? 'sidebar-btn active' : 'sidebar-btn'" class="w-full text-left px-4 py-3 rounded-lg">
+                        📆 Retroactivos
+                    </button>
+                    <button @click="cambiarVista('historial')" :class="vistaActual === 'historial' ? 'sidebar-btn active' : 'sidebar-btn'" class="w-full text-left px-4 py-3 rounded-lg">
+                        📈 Historial
+                    </button>
+                </nav>
+            </aside>
+
+            <!-- Contenido Principal -->
+            <main class="flex-1 overflow-auto">
+                <div class="w-full mx-auto px-2 py-8">
+                    <!-- Alertas -->
+                    <div x-show="alerta.mensaje" :class="'alert-' + alerta.tipo" class="p-4 rounded-lg mb-6 card-shadow">
+                        <p class="font-bold mb-1" x-text="alerta.titulo"></p>
+                        <p x-text="alerta.mensaje"></p>
+                    </div>
+
+                    <!-- Vista: Quincena -->
+                    <div x-show="vistaActual === 'quincena'">
+                        <div class="bg-white rounded-lg card-shadow p-8 mb-8">
+                            <div class="flex items-center gap-3 mb-6">
+                                <div class="w-1 h-8 accent-bg rounded"></div>
+                                <h2 class="text-2xl font-bold text-gray-900">Gestión de Quincena</h2>
+                            </div>
+
+                            <!-- Selector de Quincena + Botones -->
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+                                <div class="lg:col-span-1">
+                                    <label class="block text-sm font-semibold text-gray-800 mb-2">Seleccionar Quincena</label>
+                                    <select x-model="quincenaActual" @change="cargarQuincena()" class="w-full px-4 py-3 border-2 rounded-lg font-medium transition">
+                                        <option value="">-- Seleccionar --</option>
+                                        <template x-for="q in quincenas" :key="q.id">
+                                            <option :value="q.id" x-text="`${q.periodo}`"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 5 Botones Principales -->
+                            <div class="flex flex-wrap gap-2 mb-6">
+                                <button @click="abrirDialogoImportarPDF()" :disabled="!quincenaActual" class="btn-primary font-bold py-2 px-4 rounded-lg text-sm disabled:opacity-50">
+                                    📄 Importar PDF
+                                </button>
+                                <button @click="actualizarTodo()" :disabled="!quincenaActual" class="btn-primary font-bold py-2 px-4 rounded-lg text-sm disabled:opacity-50">
+                                    🔄 Actualizar Todo
+                                </button>
+                                <button @click="generarPDFs()" :disabled="!quincenaActual" class="btn-secondary font-bold py-2 px-4 rounded-lg text-sm disabled:opacity-50">
+                                    📊 Generar PDFs
+                                </button>
+                                <button @click="exportarExcel()" :disabled="!quincenaActual" class="btn-secondary font-bold py-2 px-4 rounded-lg text-sm disabled:opacity-50">
+                                    📥 Exportar Excel
+                                </button>
+                                <button @click="toggleCerrarQuincena()" :disabled="!quincenaActual" :class="quincenaActiva.cerrada ? 'btn-danger' : 'btn-success'" class="font-bold py-2 px-4 rounded-lg text-sm disabled:opacity-50">
+                                    <span x-show="!quincenaActiva.cerrada">✓ Cerrar Quincena</span>
+                                    <span x-show="quincenaActiva.cerrada">🔓 Reabrir Quincena</span>
+                                </button>
+                            </div>
+
+                            <!-- Tabla de Liquidaciones (13 columnas) -->
+                            <div x-show="liquidaciones.length > 0" class="overflow-x-auto">
+                                <table class="w-full border-collapse">
+                                    <thead class="table-header sticky top-0">
+                                        <tr class="text-xs font-bold">
+                                            <th class="px-3 py-2 text-left" style="width: 60px">Legajo</th>
+                                            <th class="px-3 py-2 text-left" style="width: 150px">Apellido</th>
+                                            <th class="px-3 py-2 text-left" style="width: 150px">Nombre</th>
+                                            <th class="px-3 py-2 text-right" style="width: 120px">Días</th>
+                                            <th class="px-3 py-2 text-right" style="width: 110px">Bruto</th>
+                                            <th class="px-3 py-2 text-right" style="width: 100px">Rec.A</th>
+                                            <th class="px-3 py-2 text-right" style="width: 100px">Hab</th>
+                                            <th class="px-3 py-2 text-right" style="width: 100px">Rec.B</th>
+                                            <th class="px-3 py-2 text-right" style="width: 70px">Pasajes</th>
+                                            <th class="px-3 py-2 text-right" style="width: 70px">Retro</th>
+                                            <th class="px-3 py-2 text-right" style="width: 150px">Deuda</th>
+                                            <th class="px-3 py-2 text-center" style="width: 80px">Postergar</th>
+                                            <th class="px-3 py-2 text-right" style="width: 150px">Cinta</th>
+                                            <th class="px-3 py-2 text-right" style="width: 150px">A Prep.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="(liq, idx) in liquidacionesOrdenadas" :key="liq.id">
+                                            <tr class="text-xs border-b border-gray-200" :style="{backgroundColor: idx % 2 === 0 ? '#f3f3f3' : '#e8e8e8'}">
+                                                <td class="px-3 py-2 font-mono font-bold" style="width: 60px" x-text="liq.legajo"></td>
+                                                <td class="px-3 py-2" style="width: 150px" x-text="liq.apellido"></td>
+                                                <td class="px-3 py-2" style="width: 150px" x-text="liq.nombre"></td>
+                                                <td class="px-3 py-2 text-right" style="width: 120px">
+                                                    <input type="number" x-model.number="liq.dias_trabajados" :disabled="quincenaActiva.cerrada" @change="actualizarLiquidacion(liq)" min="0" class="w-full px-2 py-1 border rounded text-right text-sm font-semibold" />
+                                                </td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 110px" x-text="formatearPesos(calcularBruto(liq))"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 100px" x-text="formatearPesos(liq.recibo_a)"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 100px" x-text="formatearPesos(liq.hab_s_desc)"></td>
+                                                <td class="px-3 py-2 text-right font-mono font-bold" style="width: 100px" x-text="formatearPesos(calcularRecibob(liq))"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 70px" x-text="formatearPesos(liq.pasajes || 0)"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 70px" x-text="formatearPesos(liq.retroactivos || 0)"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 150px; color: #dc2626" x-text="formatearPesos(calcularDeuda(liq))"></td>
+                                                <td class="px-3 py-2 text-center" style="width: 80px">
+                                                    <button x-show="calcularDeuda(liq) > 0" @click="postergarDeuda(liq.id)" :disabled="quincenaActiva.cerrada" class="btn-danger text-xs px-2 py-1 rounded">⏸</button>
+                                                </td>
+                                                <td class="px-3 py-2 text-right font-mono font-bold" style="width: 150px; color: #16a34a" x-text="formatearPesos(calcularCintaBillete(liq))"></td>
+                                                <td class="px-3 py-2 text-right font-mono font-bold" style="width: 150px; color: #16a34a" x-text="formatearPesos(redondearA500(calcularCintaBillete(liq)))"></td>
+                                                <td class="px-3 py-2 text-center" style="width: 30px">
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div x-show="liquidaciones.length === 0" class="text-center text-gray-500 py-8">
+                                <span x-show="!quincenaActual">Selecciona una quincena</span>
+                                <span x-show="quincenaActual">No hay liquidaciones</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vista: Empleados -->
+
+<!-- Vista: Empleados -->
+                    <div x-show="vistaActual === 'empleados'">
+                        <!-- Sección: Categorías -->
+                        <div class="bg-white rounded-lg card-shadow p-8 mb-8">
+                            <div class="flex items-center justify-between gap-3 mb-6">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-1 h-8 accent-bg rounded"></div>
+                                    <h2 class="text-2xl font-bold text-gray-900">Categorías</h2>
+                                </div>
+                                <button @click="abrirDialogoNuevaCategoria()" class="btn-primary font-bold py-2 px-6 rounded-lg">
+                                    + Nueva Categoría
+                                </button>
+                            </div>
+
+                            <!-- Tabla de Categorías -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full">
+                                    <thead class="table-header">
+                                        <tr class="text-sm font-bold">
+                                            <th class="px-4 py-3 text-left" style="width: 200px">Categoría</th>
+                                            <th class="px-4 py-3 text-right" style="width: 150px">Precio/día</th>
+                                            <th class="px-4 py-3 text-center" style="width: 150px">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="cat in categorias" :key="cat.id">
+                                            <tr class="table-row border-b border-gray-200 text-sm">
+                                                <td class="px-4 py-3 font-semibold" style="width: 200px" x-text="cat.nombre"></td>
+                                                <td class="px-4 py-3 text-right font-mono" style="width: 150px" x-text="formatearPesos(cat.precio_dia)"></td>
+                                                <td class="px-4 py-3 text-center" style="width: 150px">
+                                                    <button @click="editarCategoria(cat)" class="text-sm px-2 py-1 btn-secondary rounded mr-2">✏️</button>
+                                                    <button @click="eliminarCategoria(cat.id)" class="text-sm px-2 py-1 btn-danger rounded">🗑️</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Sección: Empleados -->
+                        <div class="bg-white rounded-lg card-shadow p-8">
+                            <div class="flex items-center justify-between gap-3 mb-6">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-1 h-8 accent-bg rounded"></div>
+                                    <h2 class="text-2xl font-bold text-gray-900">Empleados</h2>
+                                </div>
+                                <button @click="abrirDialogoNuevoEmpleado()" class="btn-primary font-bold py-2 px-6 rounded-lg">
+                                    + Nuevo Empleado
+                                </button>
+                            </div>
+
+                            <!-- Tabla de Empleados (SCROLLABLE) -->
+                            <div class="overflow-x-auto max-h-96" style="overflow-y: auto">
+                                <table class="w-full">
+                                    <thead class="table-header sticky top-0">
+                                        <tr class="text-sm font-bold">
+                                            <th class="px-4 py-3 text-left" style="width: 80px">Legajo</th>
+                                            <th class="px-4 py-3 text-left" style="width: 150px">Apellido</th>
+                                            <th class="px-4 py-3 text-left" style="width: 150px">Nombre</th>
+                                            <th class="px-4 py-3 text-left" style="width: 150px">Categoría</th>
+                                            <th class="px-4 py-3 text-center" style="width: 150px">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Contador DENTRO de tbody -->
+                                        <tr>
+                                            <td colspan="5" class="px-4 py-2" style="color: black; font-weight: bold; font-size: 10pt; font-family: Arial">
+                                                Total de empleados: <span x-text="empleados.length"></span>
+                                            </td>
+                                        </tr>
+
+                                        <template x-for="(emp, idx) in empleados.sort((a,b) => (a.apellido+a.nombre).localeCompare(b.apellido+b.nombre))" :key="emp.id">
+                                            <tr class="table-row border-b border-gray-200 text-sm" :style="{backgroundColor: idx % 2 === 0 ? '#f3f3f3' : '#e8e8e8'}">
+                                                <td class="px-4 py-3 font-mono font-bold" style="width: 80px" x-text="emp.legajo"></td>
+                                                <td class="px-4 py-3" style="width: 150px" x-text="emp.apellido"></td>
+                                                <td class="px-4 py-3" style="width: 150px" x-text="emp.nombre"></td>
+                                                <td class="px-4 py-3" style="width: 150px" x-text="emp.categoria_nombre"></td>
+                                                <td class="px-4 py-3 text-center" style="width: 150px">
+                                                    <button @click="editarEmpleado(emp)" class="text-sm px-2 py-1 btn-secondary rounded mr-2" style="width: 60px">✏️</button>
+                                                    <button @click="darBajaEmpleado(emp.id)" class="text-sm px-2 py-1 btn-danger rounded" style="width: 50px">🗑️</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vista: Deudas -->
+                    <div x-show="vistaActual === 'deudas'">
+                        <!-- Pestañas -->
+                        <div class="flex gap-4 mb-6">
+                            <button @click="pestaña_deudas = 'empleado'" :class="pestaña_deudas === 'empleado' ? 'btn-primary' : 'btn-secondary'" class="font-bold py-2 px-6 rounded-lg">
+                                👤 Por Empleado
+                            </button>
+                            <button @click="pestaña_deudas = 'todos'" :class="pestaña_deudas === 'todos' ? 'btn-primary' : 'btn-secondary'" class="font-bold py-2 px-6 rounded-lg">
+                                📊 Todos los Empleados
+                            </button>
+                        </div>
+
+                        <!-- PESTAÑA 1: Por Empleado -->
+                        <div x-show="pestaña_deudas === 'empleado'">
+                        <!-- Selector de Empleado -->
+                        <div class="bg-white rounded-lg card-shadow p-6 mb-6">
+                            <div class="flex items-center gap-4">
+                                <label class="block font-semibold text-gray-800">Empleado:</label>
+                                <select x-model="deudaEmpleadoSeleccionado" @change="cargarDeudas()" class="flex-1 max-w-md px-4 py-2 border-2 rounded-lg">
+                                    <option value="">-- Seleccionar empleado --</option>
+                                    <template x-for="emp in empleados.sort((a,b) => (a.apellido+a.nombre).localeCompare(b.apellido+b.nombre))" :key="emp.id">
+                                        <option :value="emp.id" x-text="`${emp.apellido} ${emp.nombre} (Leg. ${emp.legajo})`"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Tabla de Deudas del Empleado Seleccionado -->
+                        <div class="bg-white rounded-lg card-shadow p-8">
+                            <div class="flex items-center justify-between gap-3 mb-6">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-1 h-8 accent-bg rounded"></div>
+                                    <h2 class="text-2xl font-bold text-gray-900">Deudas</h2>
+                                </div>
+                                <button @click="abrirDialogoNuevaDeuda()" :disabled="!deudaEmpleadoSeleccionado" class="btn-primary font-bold py-2 px-6 rounded-lg disabled:opacity-50">
+                                    + Nueva Deuda
+                                </button>
+                            </div>
+
+                            <!-- Tabla de Deudas -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full">
+                                    <thead class="table-header">
+                                        <tr class="text-sm font-bold">
+                                            <th class="px-4 py-3 text-left w-40">Motivo</th>
+                                            <th class="px-4 py-3 text-right w-32">Monto Total</th>
+                                            <th class="px-4 py-3 text-right w-32">Ya Pagado</th>
+                                            <th class="px-4 py-3 text-right w-32">Cuota/Quinc.</th>
+                                            <th class="px-4 py-3 text-right w-32">Saldo Pend.</th>
+                                            <th class="px-4 py-3 text-center w-28">Progreso</th>
+                                            <th class="px-4 py-3 text-center w-24">Estado</th>
+                                            <th class="px-4 py-3 text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="deuda in deudasFiltradas.sort((a,b) => (a.activa ? 0 : 1) - (b.activa ? 0 : 1))" :key="deuda.id">
+                                            <tr class="table-row border-b border-gray-200 text-sm" :style="{backgroundColor: deuda.activa ? 'white' : '#f5f5f5', color: deuda.activa ? '#1a1a1a' : '#999999'}">
+                                                <td class="px-4 py-3 font-semibold" x-text="deuda.motivo"></td>
+                                                <td class="px-4 py-3 text-right font-mono" x-text="formatearPesos(deuda.monto_total)"></td>
+                                                <td class="px-4 py-3 text-right font-mono" style="color: #16a34a; font-weight: bold;" x-text="formatearPesos(deuda.monto_total - deuda.saldo_pendiente)"></td>
+                                                <td class="px-4 py-3 text-right font-mono" x-text="deuda.tipo_cobro === 'fijo' ? formatearPesos(deuda.cuota_por_quincena) : deuda.porcentaje_variable + '%'"></td>
+                                                <td class="px-4 py-3 text-right font-mono font-bold" x-text="formatearPesos(deuda.saldo_pendiente)"></td>
+                                                <td class="px-4 py-3">
+                                                    <div class="w-24 bg-gray-200 rounded-full h-2">
+                                                        <div class="bg-green-600 h-2 rounded-full transition-all" :style="{width: (deuda.monto_total > 0 ? (1 - deuda.saldo_pendiente / deuda.monto_total) * 100 : 0) + '%'}"></div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 text-center">
+                                                    <span :style="{backgroundColor: deuda.activa ? '#dbeafe' : '#e5e7eb', color: deuda.activa ? '#0369a1' : '#6b7280'}" class="px-3 py-1 rounded-full text-xs font-semibold">
+                                                        <span x-text="deuda.activa ? 'Activa' : 'Pagada'"></span>
+                                                    </span>
+                                                </td>
+                                                <td class="px-4 py-3 text-center space-x-2">
+                                                    <button @click="verPagosDeuda(deuda.id)" class="text-sm px-2 py-1 btn-primary rounded">📋</button>
+                                                    <button @click="editarDeuda(deuda)" class="text-sm px-2 py-1 btn-secondary rounded">✏️</button>
+                                                    <button @click="eliminarDeuda(deuda.id)" class="text-sm px-2 py-1 btn-danger rounded">🗑️</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                        <template x-if="deudasFiltradas.length === 0">
+                                            <tr>
+                                                <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+                                                    <span x-show="!deudaEmpleadoSeleccionado">Selecciona un empleado para ver sus deudas</span>
+                                                    <span x-show="deudaEmpleadoSeleccionado">No hay deudas registradas</span>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        </div>
+
+                        <!-- PESTAÑA 2: Todos los Empleados -->
+                        <div x-show="pestaña_deudas === 'todos'">
+                        <div class="bg-white rounded-lg card-shadow p-8">
+                            <div class="flex items-center gap-3 mb-6">
+                                <div class="w-1 h-8 accent-bg rounded"></div>
+                                <h2 class="text-2xl font-bold text-gray-900">Resumen de Deudas - Todos los Empleados</h2>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full">
+                                    <thead class="table-header">
+                                        <tr class="text-sm font-bold">
+                                            <th class="px-4 py-3 text-left w-40">Empleado</th>
+                                            <th class="px-4 py-3 text-right w-32">Deuda Total</th>
+                                            <th class="px-4 py-3 text-right w-32">Ya Pagado</th>
+                                            <th class="px-4 py-3 text-right w-32">Falta Pagar</th>
+                                            <th class="px-4 py-3 text-center w-24">Activo</th>
+                                            <th class="px-4 py-3 text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="(emp, idx) in empleados.sort((a,b) => (a.apellido+a.nombre).localeCompare(b.apellido+b.nombre))" :key="emp.id">
+                                            <template x-for="deuda in deudas.filter(d => d.empleado_id === emp.id)" :key="deuda.id">
+                                                <tr class="table-row border-b border-gray-200 text-sm" :style="{backgroundColor: idx % 2 === 0 ? '#f3f3f3' : '#ffffff'}">
+                                                    <td class="px-4 py-3 font-semibold" x-text="`${emp.apellido} ${emp.nombre}`"></td>
+                                                    <td class="px-4 py-3 text-right font-mono" x-text="formatearPesos(deuda.monto_total)"></td>
+                                                    <td class="px-4 py-3 text-right font-mono" x-text="formatearPesos(deuda.monto_total - deuda.saldo_pendiente)"></td>
+                                                    <td class="px-4 py-3 text-right font-mono font-bold" x-text="formatearPesos(deuda.saldo_pendiente)"></td>
+                                                    <td class="px-4 py-3 text-center">
+                                                        <span :style="{backgroundColor: deuda.activa ? '#dbeafe' : '#e5e7eb', color: deuda.activa ? '#0369a1' : '#6b7280'}" class="px-3 py-1 rounded-full text-xs font-semibold">
+                                                            <span x-text="deuda.activa ? 'Sí' : 'No'"></span>
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-4 py-3 text-center space-x-2">
+                                                        <button @click="verPagosDeuda(deuda.id)" class="text-sm px-2 py-1 btn-primary rounded">📋</button>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </template>
+                                        <template x-if="deudas.length === 0">
+                                            <tr>
+                                                <td colspan="6" class="px-4 py-8 text-center text-gray-500">No hay deudas registradas</td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- Vista: Pasajes -->
+                    <div x-show="vistaActual === 'pasajes'">
+                        <!-- Pestañas -->
+                        <div class="flex gap-4 mb-6">
+                            <button @click="pestaña_pasajes = 'empleado'" :class="pestaña_pasajes === 'empleado' ? 'btn-primary' : 'btn-secondary'" class="font-bold py-2 px-6 rounded-lg">
+                                👤 Por Empleado
+                            </button>
+                            <button @click="pestaña_pasajes = 'todos'" :class="pestaña_pasajes === 'todos' ? 'btn-primary' : 'btn-secondary'" class="font-bold py-2 px-6 rounded-lg">
+                                📊 Todos los Empleados
+                            </button>
+                        </div>
+
+                        <!-- PESTAÑA 1: Por Empleado -->
+                        <div x-show="pestaña_pasajes === 'empleado'">
+                        <div class="bg-white rounded-lg card-shadow p-8">
+                            <div class="flex items-center gap-3 mb-6">
+                                <div class="w-1 h-8 accent-bg rounded"></div>
+                                <h2 class="text-2xl font-bold text-gray-900">Gestión de Pasajes Programados</h2>
+                            </div>
+
+                            <!-- Selector Empleado -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Empleado</label>
+                                <select x-model="pasajeEmpleadoSeleccionado" @change="cargarPasajes()" class="max-w-md px-4 py-2 border-2 rounded-lg">
+                                    <option value="">-- Seleccionar empleado --</option>
+                                    <template x-for="emp in empleados.sort((a,b) => (a.apellido+a.nombre).localeCompare(b.apellido+b.nombre))" :key="emp.id">
+                                        <option :value="emp.id" x-text="`${emp.apellido} ${emp.nombre}`"></option>
+                                    </template>
+                                </select>
+                            </div>
+
+                            <!-- Botón Nueva Deuda -->
+                            <button @click="abrirDialogoNuevoPasaje()" :disabled="!pasajeEmpleadoSeleccionado" class="btn-primary font-bold py-2 px-4 rounded-lg mb-6 disabled:opacity-50">
+                                + Nuevo Pasaje
+                            </button>
+
+                            <!-- Tabla -->
+                            <div x-show="pasajesFiltrados.length > 0" class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="table-header">
+                                        <tr class="text-xs font-bold">
+                                            <th class="px-3 py-2 text-right" style="width: 120px">Monto</th>
+                                            <th class="px-3 py-2 text-center" style="width: 120px">Fecha Pago</th>
+                                            <th class="px-3 py-2 text-center" style="width: 120px">Fecha Viaje</th>
+                                            <th class="px-3 py-2 text-center" style="width: 120px">Quincena</th>
+                                            <th class="px-3 py-2 text-center" style="width: 100px">Estado</th>
+                                            <th class="px-3 py-2 text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="p in pasajesFiltrados" :key="p.id">
+                                            <tr class="border-b border-gray-200" style="background-color: #f3f3f3">
+                                                <td class="px-3 py-2 text-right font-mono" x-text="formatearPesos(p.monto)"></td>
+                                                <td class="px-3 py-2 text-center text-xs" x-text="p.fecha_pago"></td>
+                                                <td class="px-3 py-2 text-center text-xs" x-text="p.fecha_viaje"></td>
+                                                <td class="px-3 py-2 text-center text-xs" x-text="p.quincena_periodo || '—'"></td>
+                                                <td class="px-3 py-2 text-center">
+                                                    <span :style="{backgroundColor: p.activo ? '#dbeafe' : '#dcfce7', color: p.activo ? '#0369a1' : '#16a34a'}" class="px-2 py-1 rounded text-xs font-semibold">
+                                                        <span x-text="p.activo ? 'Activo' : 'Pago'"></span>
+                                                    </span>
+                                                </td>
+                                                <td class="px-3 py-2 text-center space-x-1">
+                                                    <button @click="editarPasaje(p)" class="text-xs px-2 py-1 btn-secondary rounded">✏️</button>
+                                                    <button @click="eliminarPasaje(p.id)" class="text-xs px-2 py-1 btn-danger rounded">🗑️</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div x-show="pasajesFiltrados.length === 0 && pasajeEmpleadoSeleccionado" class="text-center text-gray-500 py-8">
+                                Sin pasajes registrados
+                            </div>
+                        </div>
+                        </div>
+
+                        <!-- PESTAÑA 2: Todos los Empleados -->
+                        <div x-show="pestaña_pasajes === 'todos'">
+                        <div class="bg-white rounded-lg card-shadow p-8">
+                            <div class="flex items-center gap-3 mb-6">
+                                <div class="w-1 h-8 accent-bg rounded"></div>
+                                <h2 class="text-2xl font-bold text-gray-900">Todos los Pasajes</h2>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="table-header">
+                                        <tr class="text-xs font-bold">
+                                            <th class="px-3 py-2 text-left" style="width: 180px">Empleado</th>
+                                            <th class="px-3 py-2 text-center" style="width: 120px">Fecha Viaje</th>
+                                            <th class="px-3 py-2 text-center" style="width: 120px">Fecha Pago</th>
+                                            <th class="px-3 py-2 text-right" style="width: 100px">Monto</th>
+                                            <th class="px-3 py-2 text-center" style="width: 100px">Estado</th>
+                                            <th class="px-3 py-2 text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="pasaje in pasajes.sort((a,b) => {
+                                            const empA = empleados.find(e => e.id === a.empleado_id);
+                                            const empB = empleados.find(e => e.id === b.empleado_id);
+                                            const nameA = empA ? (empA.apellido + empA.nombre) : '';
+                                            const nameB = empB ? (empB.apellido + empB.nombre) : '';
+                                            return nameA.localeCompare(nameB);
+                                        })" :key="pasaje.id">
+                                            <template x-if="empleados.find(e => e.id === pasaje.empleado_id)">
+                                                <tr class="border-b border-gray-200" style="background-color: #f3f3f3">
+                                                    <td class="px-3 py-2 font-semibold" x-text="(() => {
+                                                        const emp = empleados.find(e => e.id === pasaje.empleado_id);
+                                                        return emp ? `${emp.apellido} ${emp.nombre}` : '';
+                                                    })()"></td>
+                                                    <td class="px-3 py-2 text-center text-xs" x-text="pasaje.fecha_viaje"></td>
+                                                    <td class="px-3 py-2 text-center text-xs" x-text="pasaje.fecha_pago"></td>
+                                                    <td class="px-3 py-2 text-right font-mono" x-text="formatearPesos(pasaje.monto)"></td>
+                                                    <td class="px-3 py-2 text-center">
+                                                        <span :style="{backgroundColor: pasaje.activo ? '#dbeafe' : '#dcfce7', color: pasaje.activo ? '#0369a1' : '#16a34a'}" class="px-2 py-1 rounded text-xs font-semibold">
+                                                            <span x-text="pasaje.activo ? 'Activo' : 'Pago'"></span>
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-3 py-2 text-center space-x-1">
+                                                        <button @click="editarPasaje(pasaje)" class="text-xs px-2 py-1 btn-secondary rounded">✏️</button>
+                                                        <button @click="eliminarPasaje(pasaje.id)" class="text-xs px-2 py-1 btn-danger rounded">🗑️</button>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </template>
+                                        <template x-if="pasajes.length === 0">
+                                            <tr>
+                                                <td colspan="6" class="px-3 py-8 text-center text-gray-500">No hay pasajes registrados</td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- Vista: Retroactivos -->
+                    <div x-show="vistaActual === 'retroactivos'">
+                        <!-- Pestañas -->
+                        <div class="flex gap-4 mb-6">
+                            <button @click="pestaña_retroactivos = 'empleado'" :class="pestaña_retroactivos === 'empleado' ? 'btn-primary' : 'btn-secondary'" class="font-bold py-2 px-6 rounded-lg">
+                                👤 Por Empleado
+                            </button>
+                            <button @click="pestaña_retroactivos = 'todos'" :class="pestaña_retroactivos === 'todos' ? 'btn-primary' : 'btn-secondary'" class="font-bold py-2 px-6 rounded-lg">
+                                📊 Todos los Empleados
+                            </button>
+                        </div>
+
+                        <!-- PESTAÑA 1: Por Empleado -->
+                        <div x-show="pestaña_retroactivos === 'empleado'">
+                        <div class="bg-white rounded-lg card-shadow p-8">
+                            <div class="flex items-center gap-3 mb-6">
+                                <div class="w-1 h-8 accent-bg rounded"></div>
+                                <h2 class="text-2xl font-bold text-gray-900">Gestión de Retroactivos Programados</h2>
+                            </div>
+
+                            <!-- Selector Empleado -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Empleado</label>
+                                <select x-model="retroEmpleadoSeleccionado" @change="cargarRetroactivos()" class="max-w-md px-4 py-2 border-2 rounded-lg">
+                                    <option value="">-- Seleccionar empleado --</option>
+                                    <template x-for="emp in empleados.sort((a,b) => (a.apellido+a.nombre).localeCompare(b.apellido+b.nombre))" :key="emp.id">
+                                        <option :value="emp.id" x-text="`${emp.apellido} ${emp.nombre}`"></option>
+                                    </template>
+                                </select>
+                            </div>
+
+                            <!-- Botón Nuevo Retroactivo -->
+                            <button @click="abrirDialogoNuevoRetroactivo()" :disabled="!retroEmpleadoSeleccionado" class="btn-primary font-bold py-2 px-4 rounded-lg mb-6 disabled:opacity-50">
+                                + Nuevo Retroactivo
+                            </button>
+
+                            <!-- Tabla -->
+                            <div x-show="retroactivosFiltrados.length > 0" class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="table-header">
+                                        <tr class="text-xs font-bold">
+                                            <th class="px-3 py-2 text-right" style="width: 120px">Monto Total</th>
+                                            <th class="px-3 py-2 text-center" style="width: 80px">Meses</th>
+                                            <th class="px-3 py-2 text-right" style="width: 120px">Monto/Mes</th>
+                                            <th class="px-3 py-2 text-right" style="width: 120px">Saldo Pend.</th>
+                                            <th class="px-3 py-2 text-center" style="width: 120px">Quincena Inicio</th>
+                                            <th class="px-3 py-2 text-center" style="width: 100px">Estado</th>
+                                            <th class="px-3 py-2 text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="r in retroactivosFiltrados" :key="r.id">
+                                            <tr class="border-b border-gray-200" style="background-color: #f3f3f3">
+                                                <td class="px-3 py-2 text-right font-mono" x-text="formatearPesos(r.monto_total)"></td>
+                                                <td class="px-3 py-2 text-center" x-text="r.cantidad_meses"></td>
+                                                <td class="px-3 py-2 text-right font-mono" x-text="formatearPesos(r.monto_por_mes)"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="color: #fbbf24" x-text="formatearPesos(r.saldo_pendiente)"></td>
+                                                <td class="px-3 py-2 text-center text-xs" x-text="obtenerPeriodoQuincena(r.quincena_inicio_id) || '—'"></td>
+                                                <td class="px-3 py-2 text-center">
+                                                    <span :style="{backgroundColor: r.activo ? '#dbeafe' : '#e5e7eb', color: r.activo ? '#0369a1' : '#6b7280'}" class="px-2 py-1 rounded text-xs font-semibold">
+                                                        <span x-text="r.activo ? 'Activo' : 'Completado'"></span>
+                                                    </span>
+                                                </td>
+                                                <td class="px-3 py-2 text-center space-x-1">
+                                                    <button @click="editarRetroactivo(r)" class="text-xs px-2 py-1 btn-secondary rounded">✏️</button>
+                                                    <button @click="eliminarRetroactivo(r.id)" class="text-xs px-2 py-1 btn-danger rounded">🗑️</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div x-show="retroactivosFiltrados.length === 0 && retroEmpleadoSeleccionado" class="text-center text-gray-500 py-8">
+                                Sin retroactivos registrados
+                            </div>
+                        </div>
+                        </div>
+
+                        <!-- PESTAÑA 2: Todos los Empleados -->
+                        <div x-show="pestaña_retroactivos === 'todos'">
+                        <div class="bg-white rounded-lg card-shadow p-8">
+                            <div class="flex items-center gap-3 mb-6">
+                                <div class="w-1 h-8 accent-bg rounded"></div>
+                                <h2 class="text-2xl font-bold text-gray-900">Resumen de Retroactivos - Todos los Empleados</h2>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="table-header">
+                                        <tr class="text-xs font-bold">
+                                            <th class="px-3 py-2 text-left" style="width: 200px">Empleado</th>
+                                            <th class="px-3 py-2 text-right" style="width: 120px">Monto Total</th>
+                                            <th class="px-3 py-2 text-right" style="width: 120px">Ya Pagado</th>
+                                            <th class="px-3 py-2 text-right" style="width: 120px">Falta Pagar</th>
+                                            <th class="px-3 py-2 text-center" style="width: 100px">Meses</th>
+                                            <th class="px-3 py-2 text-center" style="width: 120px">Quincena Inicio</th>
+                                            <th class="px-3 py-2 text-center" style="width: 80px">Activos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="emp in empleados.sort((a,b) => (a.apellido+a.nombre).localeCompare(b.apellido+b.nombre))" :key="emp.id">
+                                            <template x-if="retroactivos.filter(r => r.empleado_id === emp.id).length > 0">
+                                                <tr class="border-b border-gray-200" style="background-color: #f3f3f3">
+                                                    <td class="px-3 py-2 font-semibold" x-text="`${emp.apellido} ${emp.nombre}`"></td>
+                                                    <td class="px-3 py-2 text-right font-mono" x-text="formatearPesos(retroactivos.filter(r => r.empleado_id === emp.id).reduce((sum, r) => sum + r.monto_total, 0))"></td>
+                                                    <td class="px-3 py-2 text-right font-mono" x-text="formatearPesos(retroactivos.filter(r => r.empleado_id === emp.id).reduce((sum, r) => sum + (r.monto_total - r.saldo_pendiente), 0))"></td>
+                                                    <td class="px-3 py-2 text-right font-mono" x-text="formatearPesos(retroactivos.filter(r => r.empleado_id === emp.id).reduce((sum, r) => sum + r.saldo_pendiente, 0))"></td>
+                                                    <td class="px-3 py-2 text-center" x-text="retroactivos.filter(r => r.empleado_id === emp.id).reduce((sum, r) => sum + r.cantidad_meses, 0)"></td>
+                                                    <td class="px-3 py-2 text-center text-xs" x-text="obtenerPeriodoQuincena(retroactivos.filter(r => r.empleado_id === emp.id).sort((a,b) => a.id - b.id)[0]?.quincena_inicio_id) || '—'"></td>
+                                                    <td class="px-3 py-2 text-center" x-text="retroactivos.filter(r => r.empleado_id === emp.id && r.activo).length"></td>
+                                                </tr>
+                                            </template>
+                                        </template>
+                                        <template x-if="retroactivos.length === 0">
+                                            <tr>
+                                                <td colspan="7" class="px-3 py-8 text-center text-gray-500">No hay retroactivos registrados</td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- Vista: Historial -->
+                    <div x-show="vistaActual === 'historial'">
+                        <div class="bg-white rounded-lg card-shadow p-8">
+                            <div class="flex items-center gap-3 mb-6">
+                                <div class="w-1 h-8 accent-bg rounded"></div>
+                                <h2 class="text-2xl font-bold text-gray-900">Historial de Quincenas</h2>
+                            </div>
+
+                            <!-- Selector de Período + Botones -->
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                                <div class="lg:col-span-1">
+                                    <label class="block text-sm font-semibold text-gray-800 mb-2">Seleccionar Período</label>
+                                    <select x-model="quincenaHistorial" @change="cargarHistorial()" class="w-full px-4 py-3 border-2 rounded-lg font-medium transition">
+                                        <option value="">-- Seleccionar --</option>
+                                        <template x-for="q in quincenasDescendentes" :key="q.id">
+                                            <option :value="q.id" x-text="q.periodo"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-2 mb-6">
+                                <button @click="regenerarPDFsHistorial()" :disabled="!quincenaHistorial" class="btn-secondary font-bold py-2 px-4 rounded-lg text-sm disabled:opacity-50">
+                                    📊 Re-generar PDFs
+                                </button>
+                                <button @click="exportarExcelHistorial()" :disabled="!quincenaHistorial" class="btn-secondary font-bold py-2 px-4 rounded-lg text-sm disabled:opacity-50">
+                                    📥 Exportar Excel
+                                </button>
+                            </div>
+
+                            <!-- Tabla de Historial -->
+                            <div x-show="historialData.length > 0" class="overflow-x-auto">
+                                <table class="w-full">
+                                    <thead class="table-header">
+                                        <tr class="text-xs font-bold">
+                                            <th class="px-3 py-2 text-left" style="width: 60px">Legajo</th>
+                                            <th class="px-3 py-2 text-left" style="width: 150px">Apellido</th>
+                                            <th class="px-3 py-2 text-left" style="width: 150px">Nombre</th>
+                                            <th class="px-3 py-2 text-right" style="width: 110px">Bruto</th>
+                                            <th class="px-3 py-2 text-right" style="width: 100px">Rec.A</th>
+                                            <th class="px-3 py-2 text-right" style="width: 100px">Hab</th>
+                                            <th class="px-3 py-2 text-right" style="width: 100px">Rec.B</th>
+                                            <th class="px-3 py-2 text-right" style="width: 70px">Pasajes</th>
+                                            <th class="px-3 py-2 text-right" style="width: 70px">Retro</th>
+                                            <th class="px-3 py-2 text-right" style="width: 100px">Deuda</th>
+                                            <th class="px-3 py-2 text-right" style="width: 100px">Cinta</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="(item, idx) in historialData.sort((a,b) => (a.apellido+a.nombre).localeCompare(b.apellido+b.nombre))" :key="item.id">
+                                            <tr class="text-xs border-b border-gray-200" :style="{backgroundColor: '#f3f3f3'}">
+                                                <td class="px-3 py-2 font-mono font-bold" style="width: 60px" x-text="item.legajo"></td>
+                                                <td class="px-3 py-2" style="width: 150px" x-text="item.apellido"></td>
+                                                <td class="px-3 py-2" style="width: 150px" x-text="item.nombre"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 110px" x-text="formatearPesos(item.sueldo_bruto)"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 100px" x-text="formatearPesos(item.recibo_a)"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 100px" x-text="formatearPesos(item.hab_s_desc)"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 100px" x-text="formatearPesos(item.recibo_b)"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 70px" x-text="formatearPesos(item.pasajes || 0)"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 70px" x-text="formatearPesos(item.retroactivos || 0)"></td>
+                                                <td class="px-3 py-2 text-right font-mono" style="width: 100px; color: #dc2626" x-text="formatearPesos(item.deuda_total || 0)"></td>
+                                                <td class="px-3 py-2 text-right font-mono font-bold" style="width: 100px; color: #16a34a" x-text="formatearPesos(item.cinta_billete)"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div x-show="historialData.length === 0 && quincenaHistorial" class="text-center py-12 text-gray-600">
+                                <p>No hay datos disponibles para este período</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Modal: Selector de Obras -->
+        <div x-show="mostrarSelectorObras" class="fixed inset-0 modal-overlay flex items-center justify-center z-50">
+            <div class="modal-content w-96 p-8">
+                <h3 class="text-2xl font-bold mb-6">Seleccionar Obra</h3>
+                <div class="space-y-3 mb-8">
+                    <template x-for="obra in obras" :key="obra.id">
+                        <button @click="cambiarObra(obra.id)" class="w-full btn-secondary font-bold py-3 px-4 rounded-lg transition">
+                            <span x-text="obra.nombre"></span>
+                        </button>
+                    </template>
+                </div>
+                <div class="flex gap-4">
+                    <input type="text" x-model="nuevaObraNombre" placeholder="Nombre de nueva obra" class="flex-1 px-4 py-2 border-2 rounded-lg" />
+                    <button @click="crearObra()" class="btn-primary font-bold py-2 px-4 rounded-lg">
+                        ➕ Crear
+                    </button>
+                </div>
+                <button @click="mostrarSelectorObras = false" class="w-full mt-6 btn-secondary font-bold py-2 px-4 rounded-lg">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal: Nueva Categoría -->
+        <div x-show="mostrarDialogoNuevaCategoria" class="fixed inset-0 modal-overlay flex items-center justify-center z-50">
+            <div class="modal-content w-full max-w-md p-8">
+                <h3 class="text-2xl font-bold mb-6">Nueva Categoría</h3>
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Nombre de Categoría</label>
+                        <input type="text" x-model="formCategoria.nombre" placeholder="ej: Maestro Mayor" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Precio por Día ($)</label>
+                        <input type="number" x-model.number="formCategoria.precio_dia" placeholder="ej: 50000" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <button @click="guardarCategoria()" class="flex-1 btn-success font-bold py-2 px-4 rounded-lg">
+                        Guardar
+                    </button>
+                    <button @click="cancelarDialogoCategoria()" class="flex-1 btn-secondary font-bold py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Nuevo Empleado -->
+        <div x-show="mostrarDialogoNuevoEmpleado" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 overflow-y-auto">
+            <div class="modal-content w-full max-w-md p-8 my-8">
+                <h3 class="text-2xl font-bold mb-6">Nuevo Empleado</h3>
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Legajo</label>
+                        <input type="text" x-model="formEmpleado.legajo" placeholder="ej: EMP001" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Nombre</label>
+                        <input type="text" x-model="formEmpleado.nombre" placeholder="ej: Juan" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Apellido</label>
+                        <input type="text" x-model="formEmpleado.apellido" placeholder="ej: Pérez" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">CUIL</label>
+                        <input type="text" x-model="formEmpleado.cuil" placeholder="ej: 20123456789" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Categoría</label>
+                        <select x-model="formEmpleado.categoria_id" class="w-full px-4 py-2 border-2 rounded-lg">
+                            <option value="">-- Seleccionar --</option>
+                            <template x-for="cat in categorias" :key="cat.id">
+                                <option :value="cat.id" x-text="cat.nombre"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <button @click="guardarEmpleado()" class="flex-1 btn-success font-bold py-2 px-4 rounded-lg">
+                        Guardar
+                    </button>
+                    <button @click="cancelarDialogoEmpleado()" class="flex-1 btn-secondary font-bold py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Editar Empleado -->
+        <div x-show="mostrarDialogoEditarEmpleado" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 overflow-y-auto">
+            <div class="modal-content w-full max-w-md p-8 my-8">
+                <h3 class="text-2xl font-bold mb-6">Editar Empleado</h3>
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Legajo</label>
+                        <input type="text" x-model="formEmpleado.legajo" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Nombre</label>
+                        <input type="text" x-model="formEmpleado.nombre" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Apellido</label>
+                        <input type="text" x-model="formEmpleado.apellido" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">CUIL</label>
+                        <input type="text" x-model="formEmpleado.cuil" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Categoría</label>
+                        <select x-model="formEmpleado.categoria_id" class="w-full px-4 py-2 border-2 rounded-lg">
+                            <option value="">-- Seleccionar --</option>
+                            <template x-for="cat in categorias" :key="cat.id">
+                                <option :value="cat.id" x-text="cat.nombre"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <button @click="guardarEmpleadoEditado()" class="flex-1 btn-success font-bold py-2 px-4 rounded-lg">
+                        Guardar Cambios
+                    </button>
+                    <button @click="cancelarDialogoEmpleado()" class="flex-1 btn-secondary font-bold py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Nueva Deuda -->
+        <div x-show="mostrarDialogoNuevaDeuda" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 overflow-y-auto">
+            <div class="modal-content w-full max-w-md p-8 my-8">
+                <h3 class="text-2xl font-bold mb-6">Nueva Deuda</h3>
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Empleado</label>
+                        <select x-model="formDeuda.empleado_id" class="w-full px-4 py-2 border-2 rounded-lg">
+                            <option value="">-- Seleccionar --</option>
+                            <template x-for="emp in empleados" :key="emp.id">
+                                <option :value="emp.id" x-text="`${emp.nombre} ${emp.apellido}`"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Motivo</label>
+                        <input type="text" x-model="formDeuda.motivo" placeholder="ej: Anticipo" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Monto Total ($)</label>
+                        <input type="number" x-model.number="formDeuda.monto_total" placeholder="ej: 100000" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Tipo de Cobro</label>
+                        <select x-model="formDeuda.tipo_cobro" class="w-full px-4 py-2 border-2 rounded-lg">
+                            <option value="fijo">Monto Fijo por Quincena</option>
+                            <option value="porcentaje">% del Recibo B</option>
+                        </select>
+                    </div>
+                    <div x-show="formDeuda.tipo_cobro === 'fijo'">
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Cuota por Quincena ($)</label>
+                        <input type="number" x-model.number="formDeuda.cuota_por_quincena" placeholder="ej: 20000" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div x-show="formDeuda.tipo_cobro === 'porcentaje'">
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Porcentaje del Recibo B (%)</label>
+                        <input type="number" x-model.number="formDeuda.porcentaje_variable" placeholder="ej: 15" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Quincena de Inicio</label>
+                        <select x-model="formDeuda.quincena_inicio_id" class="w-full px-4 py-2 border-2 rounded-lg">
+                            <option value="">-- Seleccionar --</option>
+                            <template x-for="q in quincenas" :key="q.id">
+                                <option :value="q.id" x-text="q.periodo"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <button @click="guardarDeuda()" class="flex-1 btn-success font-bold py-2 px-4 rounded-lg">
+                        Guardar
+                    </button>
+                    <button @click="cancelarDialogoDeuda()" class="flex-1 btn-secondary font-bold py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Editar Deuda -->
+        <div x-show="mostrarDialogoEditarDeuda" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 overflow-y-auto">
+            <div class="modal-content w-full max-w-md p-8 my-8">
+                <h3 class="text-2xl font-bold mb-6">Editar Deuda</h3>
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Motivo</label>
+                        <input type="text" x-model="formDeuda.motivo" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Monto Total ($)</label>
+                        <input type="number" x-model.number="formDeuda.monto_total" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Tipo de Cobro</label>
+                        <select x-model="formDeuda.tipo_cobro" class="w-full px-4 py-2 border-2 rounded-lg">
+                            <option value="fijo">Monto Fijo por Quincena</option>
+                            <option value="porcentaje">% del Recibo B</option>
+                        </select>
+                    </div>
+                    <div x-show="formDeuda.tipo_cobro === 'fijo'">
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Cuota por Quincena ($)</label>
+                        <input type="number" x-model.number="formDeuda.cuota_por_quincena" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                    <div x-show="formDeuda.tipo_cobro === 'porcentaje'">
+                        <label class="block text-sm font-semibold text-gray-800 mb-2">Porcentaje del Recibo B (%)</label>
+                        <input type="number" x-model.number="formDeuda.porcentaje_variable" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <button @click="guardarDeudaEditada()" class="flex-1 btn-success font-bold py-2 px-4 rounded-lg">
+                        Guardar Cambios
+                    </button>
+                    <button @click="cancelarDialogoDeuda()" class="flex-1 btn-secondary font-bold py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Ver Pagos de Deuda -->
+        <div x-show="mostrarDialogoVerPagos" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 overflow-y-auto">
+            <div class="modal-content w-full max-w-md p-8 my-8">
+                <h3 class="text-2xl font-bold mb-6">Historial de Pagos</h3>
+                <div x-show="pagosDeuda.length > 0" class="space-y-3 mb-6 max-h-96 overflow-y-auto">
+                    <template x-for="pago in pagosDeuda" :key="pago.id">
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <p class="text-sm text-gray-600" x-text="`Quincena: ${pago.periodo}`"></p>
+                            <p class="text-lg font-bold" x-text="`${formatearPesos(pago.monto_aplicado)}`"></p>
+                            <p class="text-xs text-gray-500" x-text="`${pago.nombre}`"></p>
+                        </div>
+                    </template>
+                </div>
+                <div x-show="pagosDeuda.length === 0" class="text-center py-8 text-gray-600">
+                    <p>No hay pagos registrados</p>
+                </div>
+                <button @click="mostrarDialogoVerPagos = false" class="w-full btn-secondary font-bold py-2 px-4 rounded-lg">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal: Importar PDF -->
+        <div x-show="mostrarDialogoImportarPDF" class="fixed inset-0 modal-overlay flex items-center justify-center z-50">
+            <div class="modal-content w-full max-w-md p-8">
+                <h3 class="text-2xl font-bold mb-6">Importar PDF del Banco</h3>
+                <div class="space-y-4 mb-6">
+                    <p class="text-sm text-gray-600">Seleccione el PDF con los recibos del banco</p>
+                    <input type="file" id="filePDF" accept=".pdf" class="w-full px-4 py-2 border-2 rounded-lg" />
+                </div>
+                <div class="flex gap-4">
+                    <button @click="procesarPDF()" class="flex-1 btn-success font-bold py-2 px-4 rounded-lg">
+                        Importar
+                    </button>
+                    <button @click="cancelarDialogoImportarPDF()" class="flex-1 btn-secondary font-bold py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diálogo: Nuevo Pasaje -->
+        <div x-show="mostrarDialogoNuevoPasaje" class="fixed inset-0 modal-overlay flex items-center justify-center z-50">
+            <div class="modal-content w-full max-w-md p-8">
+                <h3 class="text-2xl font-bold mb-6">Nuevo Pasaje</h3>
+                <div class="space-y-4 mb-6">
+                    <input type="text" x-model="formPasaje.monto" placeholder="Monto en pesos (ej: 15000 o 15000.50)" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    <input type="text" x-model="formPasaje.fecha_pago" placeholder="Fecha Pago (DD/MM/YYYY)" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    <input type="text" x-model="formPasaje.fecha_viaje" placeholder="Fecha Viaje (DD/MM/YYYY)" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    <select x-model.number="formPasaje.quincena_pago_id" class="w-full px-4 py-2 border-2 rounded-lg">
+                        <option value="">Seleccionar Quincena</option>
+                        <template x-for="q in quincenas" :key="q.id">
+                            <option :value="q.id" x-text="q.periodo"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="flex gap-4">
+                    <button @click="guardarPasaje()" class="flex-1 btn-success font-bold py-2 px-4 rounded-lg">
+                        Guardar
+                    </button>
+                    <button @click="cancelarDialogoPasaje()" class="flex-1 btn-secondary font-bold py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diálogo: Editar Pasaje -->
+        <div x-show="mostrarDialogoEditarPasaje" class="fixed inset-0 modal-overlay flex items-center justify-center z-50">
+            <div class="modal-content w-full max-w-md p-8">
+                <h3 class="text-2xl font-bold mb-6">Editar Pasaje</h3>
+                <div class="space-y-4 mb-6">
+                    <input type="text" x-model="formPasaje.monto" placeholder="Monto en pesos (ej: 15000 o 15000.50)" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    <input type="text" x-model="formPasaje.fecha_pago" placeholder="Fecha Pago (DD/MM/YYYY)" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    <input type="text" x-model="formPasaje.fecha_viaje" placeholder="Fecha Viaje (DD/MM/YYYY)" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    <select x-model.number="formPasaje.quincena_pago_id" class="w-full px-4 py-2 border-2 rounded-lg">
+                        <option value="">Seleccionar Quincena</option>
+                        <template x-for="q in quincenas" :key="q.id">
+                            <option :value="q.id" x-text="q.periodo"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="flex gap-4">
+                    <button @click="guardarPasajeEditado()" class="flex-1 btn-success font-bold py-2 px-4 rounded-lg">
+                        Guardar Cambios
+                    </button>
+                    <button @click="cancelarDialogoPasaje()" class="flex-1 btn-secondary font-bold py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diálogo: Nuevo Retroactivo -->
+        <div x-show="mostrarDialogoNuevoRetroactivo" class="fixed inset-0 modal-overlay flex items-center justify-center z-50">
+            <div class="modal-content w-full max-w-md p-8">
+                <h3 class="text-2xl font-bold mb-6">Nuevo Retroactivo</h3>
+                <div class="space-y-4 mb-6">
+                    <input type="number" x-model.number="formRetroactivo.monto_por_mes" placeholder="Monto por Mes ($)" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    <input type="number" x-model.number="formRetroactivo.cantidad_meses" placeholder="Cantidad de Meses" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    <select x-model.number="formRetroactivo.quincena_inicio_id" class="w-full px-4 py-2 border-2 rounded-lg">
+                        <option value="">Seleccionar Quincena Inicio</option>
+                        <template x-for="q in quincenas" :key="q.id">
+                            <option :value="q.id" x-text="q.periodo"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="flex gap-4">
+                    <button @click="guardarRetroactivo()" class="flex-1 btn-success font-bold py-2 px-4 rounded-lg">
+                        Guardar
+                    </button>
+                    <button @click="cancelarDialogoRetroactivo()" class="flex-1 btn-secondary font-bold py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diálogo: Editar Retroactivo -->
+        <div x-show="mostrarDialogoEditarRetroactivo" class="fixed inset-0 modal-overlay flex items-center justify-center z-50">
+            <div class="modal-content w-full max-w-md p-8">
+                <h3 class="text-2xl font-bold mb-6">Editar Retroactivo</h3>
+                <div class="space-y-4 mb-6">
+                    <input type="number" x-model.number="formRetroactivo.monto_por_mes" placeholder="Monto por Mes ($)" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    <input type="number" x-model.number="formRetroactivo.cantidad_meses" placeholder="Cantidad de Meses" class="w-full px-4 py-2 border-2 rounded-lg" />
+                    <select x-model.number="formRetroactivo.quincena_inicio_id" class="w-full px-4 py-2 border-2 rounded-lg">
+                        <option value="">Seleccionar Quincena Inicio</option>
+                        <template x-for="q in quincenas" :key="q.id">
+                            <option :value="q.id" x-text="q.periodo"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="flex gap-4">
+                    <button @click="guardarRetroactivoEditado()" class="flex-1 btn-success font-bold py-2 px-4 rounded-lg">
+                        Guardar Cambios
+                    </button>
+                    <button @click="cancelarDialogoRetroactivo()" class="flex-1 btn-secondary font-bold py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function app() {
+            return {
+                // Estado General
+                vistaActual: 'quincena',
+                obraActual: 'Tandil',
+                obras: [],
+                mostrarSelectorObras: false,
+                nuevaObraNombre: '',
+
+                // Alertas
+                alerta: {
+                    mensaje: '',
+                    titulo: '',
+                    tipo: 'success'
+                },
+
+                // Quincenas
+                quincenas: [],
+                quincenaActual: null,
+                quincenaActiva: {},
+                liquidaciones: [],
+
+                // Empleados
+                empleados: [],
+                categorias: [],
+                mostrarDialogoNuevaCategoria: false,
+                mostrarDialogoNuevoEmpleado: false,
+                mostrarDialogoEditarEmpleado: false,
+                formCategoria: { nombre: '', precio_dia: null },
+                formEmpleado: { legajo: '', nombre: '', apellido: '', cuil: '', categoria_id: null },
+                empleadoEnEdicion: null,
+
+                // Deudas
+                deudas: [],
+                deudaEmpleadoSeleccionado: '',
+                deudasFiltradas: [],
+                mostrarDialogoNuevaDeuda: false,
+                mostrarDialogoEditarDeuda: false,
+                formDeuda: { empleado_id: null, motivo: '', monto_total: null, tipo_cobro: 'fijo', cuota_por_quincena: null, porcentaje_variable: null, quincena_inicio_id: null },
+                deudaEnEdicion: null,
+
+                // Historial
+                quincenaHistorial: null,
+                historialData: [],
+
+                // Pasajes
+                pasajes: [],
+                pasajeEmpleadoSeleccionado: null,
+                pasajesFiltrados: [],
+                mostrarDialogoNuevoPasaje: false,
+                mostrarDialogoEditarPasaje: false,
+                formPasaje: { monto: null, fecha_pago: '', fecha_viaje: '', quincena_pago_id: null },
+                pasajeEnEdicion: null,
+
+                // Retroactivos
+                retroactivos: [],
+                retroEmpleadoSeleccionado: null,
+                retroactivosFiltrados: [],
+                mostrarDialogoNuevoRetroactivo: false,
+                mostrarDialogoEditarRetroactivo: false,
+                formRetroactivo: { monto_por_mes: null, cantidad_meses: null, quincena_inicio_id: null },
+                retroactivoEnEdicion: null,
+
+                // Pestañas para vistas de Deudas, Pasajes, Retroactivos
+                pestaña_deudas: 'empleado', // 'empleado' o 'todos'
+                pestaña_pasajes: 'empleado', // 'empleado' o 'todos'
+                pestaña_retroactivos: 'empleado', // 'empleado' o 'todos'
+
+                // Diálogos varios
+                mostrarDialogoImportarPDF: false,
+                mostrarDialogoVerPagos: false,
+                pagosDeuda: [],
+
+                // Inicialización
+                async init() {
+                    await this.cargarObras();
+                    await this.cargarQuincenas();
+                    await this.cargarCategorias();
+                    await this.cargarEmpleados();
+                    await this.cargarDeudas();
+                    await this.cargarTodosPasajes();
+                    await this.cargarTodosRetroactivos();
+                },
+
+                // API Calls
+                async llamarAPI(endpoint, metodo = 'GET', datos = null) {
+                    try {
+                        const opciones = {
+                            method: metodo,
+                            headers: {
+                                'Content-Type': 'application/json',
+                            }
+                        };
+
+                        if (datos) {
+                            opciones.body = JSON.stringify(datos);
+                        }
+
+                        const respuesta = await fetch(`/api${endpoint}`, opciones);
+
+                        if (!respuesta.ok) {
+                            throw new Error(`Error: ${respuesta.status}`);
+                        }
+
+                        return await respuesta.json();
+                    } catch (error) {
+                        this.mostrarAlerta('error', 'Error', error.message);
+                        return null;
+                    }
+                },
+
+                // Métodos Generales
+                formatearPesos(centavos) {
+                    const pesos = centavos / 100;
+                    return `$${pesos.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                },
+
+                obtenerPeriodoQuincena(quincena_id) {
+                    if (!quincena_id) return null;
+                    const quincena = this.quincenas.find(q => q.id === quincena_id);
+                    return quincena ? quincena.periodo : null;
+                },
+
+                mostrarAlerta(tipo, titulo, mensaje) {
+                    this.alerta = { tipo, titulo, mensaje };
+                    setTimeout(() => {
+                        this.alerta.mensaje = '';
+                    }, 5000);
+                },
+
+                cambiarVista(vista) {
+                    this.vistaActual = vista;
+                },
+
+                // Obras
+                async cargarObras() {
+                    const resultado = await this.llamarAPI('/obras');
+                    if (resultado) {
+                        this.obras = resultado;
+                    }
+                },
+
+                abrirSelectorObras() {
+                    this.mostrarSelectorObras = true;
+                },
+
+                async cambiarObra(obraId) {
+                    const resultado = await this.llamarAPI('/obras/cambiar', 'POST', { obra_id: obraId });
+                    if (resultado) {
+                        this.obraActual = resultado.nombre;
+                        this.mostrarSelectorObras = false;
+                        await this.init();
+                        this.mostrarAlerta('success', 'Éxito', `Obra cambiada a: ${this.obraActual}`);
+                    }
+                },
+
+                async crearObra() {
+                    if (!this.nuevaObraNombre.trim()) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Ingrese un nombre para la obra');
+                        return;
+                    }
+
+                    const resultado = await this.llamarAPI('/obras/crear', 'POST', { nombre: this.nuevaObraNombre });
+                    if (resultado) {
+                        this.nuevaObraNombre = '';
+                        await this.cargarObras();
+                        this.mostrarAlerta('success', 'Éxito', 'Obra creada correctamente');
+                    }
+                },
+
+                // Quincenas
+                async cargarQuincenas() {
+                    const resultado = await this.llamarAPI('/quincenas');
+                    if (resultado) {
+                        this.quincenas = resultado;
+                        if (this.quincenas.length > 0) {
+                            this.quincenaActual = this.quincenas[0].id;
+                        }
+                    }
+                },
+
+                async cargarQuincena() {
+                    if (!this.quincenaActual) return;
+
+                    const resultado = await this.llamarAPI(`/quincenas/${this.quincenaActual}`);
+                    if (resultado) {
+                        this.quincenaActiva = resultado.quincena;
+                        this.liquidaciones = resultado.liquidaciones;
+                    }
+                },
+
+                async cerrarQuincena() {
+                    if (!confirm('¿Desea cerrar esta quincena?')) return;
+
+                    const resultado = await this.llamarAPI(`/quincenas/${this.quincenaActual}/cerrar`, 'POST');
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Quincena cerrada');
+                        await this.cargarQuincena();
+                        await this.cargarDeudas();
+                        await this.cargarTodosPasajes();
+                        await this.cargarTodosRetroactivos();
+                    }
+                },
+
+                async reabrirQuincena() {
+                    if (!confirm('¿Desea reabrir esta quincena?')) return;
+
+                    const resultado = await this.llamarAPI(`/quincenas/${this.quincenaActual}/reabrir`, 'POST');
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Quincena reabierta');
+                        await this.cargarQuincena();
+                        await this.cargarDeudas();
+                        await this.cargarTodosPasajes();
+                        await this.cargarTodosRetroactivos();
+                    }
+                },
+
+                async actualizarTodo() {
+                    const resultado = await this.llamarAPI(`/quincenas/${this.quincenaActual}/actualizar`, 'POST', { liquidaciones: this.liquidaciones });
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', `Se actualizaron ${resultado.actualizados} empleados`);
+                    }
+                },
+
+                async actualizarLiquidacion(liq) {
+                    const resultado = await this.llamarAPI(`/liquidaciones/${liq.id}`, 'PUT', liq);
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Liquidación actualizada');
+                    }
+                },
+
+
+                // ====== CÁLCULOS QUINCENA ======
+                calcularBruto(liq) {
+                    // Buscar categoría del empleado
+                    const emp = this.empleados.find(e => e.id === liq.empleado_id);
+                    if (!emp) return 0;
+                    const cat = this.categorias.find(c => c.id === emp.categoria_id);
+                    if (!cat) return 0;
+                    return cat.precio_dia * liq.dias_trabajados;
+                },
+
+                calcularRecibob(liq) {
+                    const bruto = this.calcularBruto(liq);
+                    return bruto - liq.recibo_a + liq.hab_s_desc;
+                },
+
+                calcularDeuda(liq) {
+                    // Suma de cuotas aplicadas en esta quincena (simplificado)
+                    // En producción, esto vendría del backend
+                    return liq.deuda_total || 0;
+                },
+
+                calcularCintaBillete(liq) {
+                    const recibob = this.calcularRecibob(liq);
+                    const deuda = this.calcularDeuda(liq);
+                    const pasajes = liq.pasajes || 0;
+                    const retro = liq.retroactivos || 0;
+                    return recibob - deuda + pasajes + retro;
+                },
+
+                redondearA500(centavos) {
+                    const incremento = 50000; // $500
+                    const resto = centavos % incremento;
+                    if (resto < incremento / 2) {
+                        return centavos - resto;
+                    } else {
+                        return centavos - resto + incremento;
+                    }
+                },
+
+                // Propiedades computed
+                get liquidacionesOrdenadas() {
+                    return this.liquidaciones.sort((a, b) => {
+                        const nomA = (a.apellido || '') + (a.nombre || '');
+                        const nomB = (b.apellido || '') + (b.nombre || '');
+                        return nomA.localeCompare(nomB);
+                    });
+                },
+
+                async toggleCerrarQuincena() {
+                    if (this.quincenaActiva.cerrada) {
+                        // Reabrir
+                        if (!confirm('¿Desea reabrir esta quincena para editar?')) return;
+                        const resultado = await this.llamarAPI(`/quincenas/${this.quincenaActual}/reabrir`, 'POST');
+                        if (resultado) {
+                            this.mostrarAlerta('success', 'Éxito', 'Quincena reabierta');
+                            await this.cargarQuincena();
+                        }
+                    } else {
+                        // Cerrar
+                        if (!confirm('¿Cerrar esta quincena? Se aplicarán las cuotas de deudas')) return;
+                        const resultado = await this.llamarAPI(`/quincenas/${this.quincenaActual}/cerrar`, 'POST');
+                        if (resultado) {
+                            this.mostrarAlerta('success', 'Éxito', 'Quincena cerrada y deudas aplicadas');
+                            await this.cargarQuincena();
+                        }
+                    }
+                },
+
+                async postergarDeuda(deudaId) {
+                    if (!confirm('¿Postergar esta deuda para la próxima quincena?')) return;
+                    const resultado = await this.llamarAPI(`/deudas/${deudaId}/postergar`, 'POST', { quincena_id: this.quincenaActual });
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Deuda postergada');
+                        await this.cargarQuincena();
+                    }
+                },
+
+                // Categorías
+                // Categorías
+                async cargarCategorias() {
+                    const resultado = await this.llamarAPI('/categorias');
+                    if (resultado) {
+                        this.categorias = resultado;
+                    }
+                },
+
+                abrirDialogoNuevaCategoria() {
+                    this.formCategoria = { nombre: '', precio_dia: null };
+                    this.mostrarDialogoNuevaCategoria = true;
+                },
+
+                async guardarCategoria() {
+                    if (!this.formCategoria.nombre.trim() || !this.formCategoria.precio_dia) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Complete todos los campos');
+                        return;
+                    }
+
+                    const resultado = await this.llamarAPI('/categorias', 'POST', {
+                        nombre: this.formCategoria.nombre,
+                        precio_dia: Math.round(this.formCategoria.precio_dia * 100)
+                    });
+
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Categoría creada correctamente');
+                        this.cancelarDialogoCategoria();
+                        await this.cargarCategorias();
+                    }
+                },
+
+                cancelarDialogoCategoria() {
+                    this.mostrarDialogoNuevaCategoria = false;
+                    this.formCategoria = { nombre: '', precio_dia: null };
+                },
+
+                // Empleados
+                async cargarEmpleados() {
+                    const resultado = await this.llamarAPI('/empleados');
+                    if (resultado) {
+                        this.empleados = resultado;
+                    }
+                },
+
+                editarLiquidacion(liq) {
+                    // Editar liquidación inline
+                    this.mostrarAlerta('info', 'Editar', `Editando: ${liq.nombre} ${liq.apellido} - Los valores se actualizan en tiempo real`);
+                },
+
+                abrirDialogoNuevoEmpleado() {
+                    this.formEmpleado = { legajo: '', nombre: '', apellido: '', cuil: '', categoria_id: null };
+                    this.empleadoEnEdicion = null;
+                    this.mostrarDialogoNuevoEmpleado = true;
+                },
+
+                async guardarEmpleado() {
+                    if (!this.formEmpleado.legajo.trim() || !this.formEmpleado.nombre.trim() || !this.formEmpleado.apellido.trim() || !this.formEmpleado.categoria_id) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Complete todos los campos');
+                        return;
+                    }
+
+                    const resultado = await this.llamarAPI('/empleados', 'POST', {
+                        legajo: this.formEmpleado.legajo,
+                        nombre: this.formEmpleado.nombre,
+                        apellido: this.formEmpleado.apellido,
+                        cuil: this.formEmpleado.cuil,
+                        categoria_id: parseInt(this.formEmpleado.categoria_id)
+                    });
+
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Empleado creado correctamente');
+                        this.cancelarDialogoEmpleado();
+                        await this.cargarEmpleados();
+                    }
+                },
+
+                cancelarDialogoEmpleado() {
+                    this.mostrarDialogoNuevoEmpleado = false;
+                    this.mostrarDialogoEditarEmpleado = false;
+                    this.formEmpleado = { legajo: '', nombre: '', apellido: '', cuil: '', categoria_id: null };
+                    this.empleadoEnEdicion = null;
+                },
+
+                editarEmpleado(emp) {
+                    this.empleadoEnEdicion = emp;
+                    this.formEmpleado = {
+                        legajo: emp.legajo,
+                        nombre: emp.nombre,
+                        apellido: emp.apellido,
+                        cuil: emp.cuil,
+                        categoria_id: emp.categoria_id
+                    };
+                    this.mostrarDialogoEditarEmpleado = true;
+                },
+
+                async guardarEmpleadoEditado() {
+                    if (!this.formEmpleado.nombre.trim() || !this.formEmpleado.apellido.trim() || !this.formEmpleado.categoria_id) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Complete todos los campos');
+                        return;
+                    }
+
+                    const resultado = await this.llamarAPI(`/empleados/${this.empleadoEnEdicion.id}`, 'PUT', {
+                        legajo: this.formEmpleado.legajo,
+                        nombre: this.formEmpleado.nombre,
+                        apellido: this.formEmpleado.apellido,
+                        cuil: this.formEmpleado.cuil,
+                        categoria_id: parseInt(this.formEmpleado.categoria_id)
+                    });
+
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Empleado actualizado correctamente');
+                        this.cancelarDialogoEmpleado();
+                        await this.cargarEmpleados();
+                    }
+                },
+
+                async darBajaEmpleado(id) {
+                    if (!confirm('¿Desea dar baja a este empleado?')) return;
+
+                    const resultado = await this.llamarAPI(`/empleados/${id}`, 'DELETE');
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Empleado dado de baja');
+                        await this.cargarEmpleados();
+                    }
+                },
+
+                // Deudas
+                async cargarDeudas() {
+                    const resultado = await this.llamarAPI('/deudas');
+                    if (resultado) {
+                        this.deudas = resultado;
+                        // Filtrar deudas por empleado seleccionado
+                        if (this.deudaEmpleadoSeleccionado) {
+                            this.deudasFiltradas = resultado.filter(d => d.empleado_id == this.deudaEmpleadoSeleccionado);
+                        } else {
+                            this.deudasFiltradas = [];
+                        }
+                    }
+                },
+
+                async cargarTodosPasajes() {
+                    const resultado = await this.llamarAPI('/pasajes');
+                    if (resultado) {
+                        this.pasajes = resultado;
+                    }
+                },
+
+                async cargarTodosRetroactivos() {
+                    const resultado = await this.llamarAPI('/retroactivos');
+                    if (resultado) {
+                        this.retroactivos = resultado;
+                    }
+                },
+
+                abrirDialogoNuevaDeuda() {
+                    if (!this.deudaEmpleadoSeleccionado) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Selecciona un empleado primero');
+                        return;
+                    }
+                    this.formDeuda = { 
+                        empleado_id: parseInt(this.deudaEmpleadoSeleccionado), 
+                        motivo: '', 
+                        monto_total: null, 
+                        tipo_cobro: 'fijo', 
+                        cuota_por_quincena: null, 
+                        porcentaje_variable: null, 
+                        quincena_inicio_id: null 
+                    };
+                    this.deudaEnEdicion = null;
+                    this.mostrarDialogoNuevaDeuda = true;
+                },
+
+                async guardarDeuda() {
+                    if (!this.formDeuda.motivo.trim() || !this.formDeuda.monto_total || !this.formDeuda.quincena_inicio_id) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Complete todos los campos');
+                        return;
+                    }
+
+                    if (this.formDeuda.tipo_cobro === 'fijo' && !this.formDeuda.cuota_por_quincena) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Ingrese la cuota por quincena');
+                        return;
+                    }
+
+                    if (this.formDeuda.tipo_cobro === 'porcentaje' && !this.formDeuda.porcentaje_variable) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Ingrese el porcentaje');
+                        return;
+                    }
+
+                    const datos = {
+                        empleado_id: parseInt(this.formDeuda.empleado_id),
+                        motivo: this.formDeuda.motivo,
+                        monto_total: Math.round(this.formDeuda.monto_total * 100),
+                        tipo_cobro: this.formDeuda.tipo_cobro,
+                        quincena_inicio_id: parseInt(this.formDeuda.quincena_inicio_id)
+                    };
+
+                    if (this.formDeuda.tipo_cobro === 'fijo') {
+                        datos.cuota_por_quincena = Math.round(this.formDeuda.cuota_por_quincena * 100);
+                    } else {
+                        datos.porcentaje_variable = parseFloat(this.formDeuda.porcentaje_variable);
+                    }
+
+                    const resultado = await this.llamarAPI('/deudas', 'POST', datos);
+
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Deuda creada correctamente');
+                        this.cancelarDialogoDeuda();
+                        await this.cargarDeudas();
+                    }
+                },
+
+                cancelarDialogoDeuda() {
+                    this.mostrarDialogoNuevaDeuda = false;
+                    this.mostrarDialogoEditarDeuda = false;
+                    this.formDeuda = { empleado_id: null, motivo: '', monto_total: null, tipo_cobro: 'fijo', cuota_por_quincena: null, porcentaje_variable: null, quincena_inicio_id: null };
+                    this.deudaEnEdicion = null;
+                },
+
+                editarDeuda(deuda) {
+                    this.deudaEnEdicion = deuda;
+                    this.formDeuda = {
+                        empleado_id: deuda.empleado_id,
+                        motivo: deuda.motivo,
+                        monto_total: deuda.monto_total / 100,
+                        tipo_cobro: deuda.tipo_cobro,
+                        cuota_por_quincena: deuda.cuota_por_quincena ? deuda.cuota_por_quincena / 100 : null,
+                        porcentaje_variable: deuda.porcentaje_variable,
+                        quincena_inicio_id: deuda.quincena_inicio_id
+                    };
+                    this.mostrarDialogoEditarDeuda = true;
+                },
+
+                async guardarDeudaEditada() {
+                    if (!this.formDeuda.motivo.trim() || !this.formDeuda.monto_total) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Complete todos los campos');
+                        return;
+                    }
+
+                    if (this.formDeuda.tipo_cobro === 'fijo' && !this.formDeuda.cuota_por_quincena) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Ingrese la cuota por quincena');
+                        return;
+                    }
+
+                    if (this.formDeuda.tipo_cobro === 'porcentaje' && !this.formDeuda.porcentaje_variable) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Ingrese el porcentaje');
+                        return;
+                    }
+
+                    const datos = {
+                        motivo: this.formDeuda.motivo,
+                        monto_total: Math.round(this.formDeuda.monto_total * 100),
+                        tipo_cobro: this.formDeuda.tipo_cobro
+                    };
+
+                    if (this.formDeuda.tipo_cobro === 'fijo') {
+                        datos.cuota_por_quincena = Math.round(this.formDeuda.cuota_por_quincena * 100);
+                    } else {
+                        datos.porcentaje_variable = parseFloat(this.formDeuda.porcentaje_variable);
+                    }
+
+                    const resultado = await this.llamarAPI(`/deudas/${this.deudaEnEdicion.id}`, 'PUT', datos);
+
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Deuda actualizada correctamente');
+                        this.cancelarDialogoDeuda();
+                        await this.cargarDeudas();
+                    }
+                },
+
+                async eliminarDeuda(id) {
+                    if (!confirm('¿Desea eliminar esta deuda?')) return;
+
+                    const resultado = await this.llamarAPI(`/deudas/${id}`, 'DELETE');
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Deuda eliminada');
+                        await this.cargarDeudas();
+                    }
+                },
+
+                async verPagosDeuda(deudaId) {
+                    const resultado = await this.llamarAPI(`/deudas/${deudaId}/pagos`);
+                    if (resultado) {
+                        this.pagosDeuda = resultado;
+                        this.mostrarDialogoVerPagos = true;
+                    }
+                },
+
+                verDeudas(empleadoId) {
+                    this.mostrarAlerta('info', 'Deudas del Empleado', 'Funcionalidad: Ver deudas filtradas por empleado (en desarrollo)');
+                },
+
+                // Pasajes
+                async cargarPasajes() {
+                    if (this.pasajeEmpleadoSeleccionado) {
+                        const resultado = await this.llamarAPI(`/pasajes?empleado_id=${this.pasajeEmpleadoSeleccionado}`);
+                        if (resultado) {
+                            this.pasajesFiltrados = resultado;
+                        }
+                    }
+                },
+
+                abrirDialogoNuevoPasaje() {
+                    if (!this.pasajeEmpleadoSeleccionado) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Seleccione un empleado');
+                        return;
+                    }
+                    this.formPasaje = { monto: null, fecha_pago: '', fecha_viaje: '', quincena_pago_id: null };
+                    this.mostrarDialogoNuevoPasaje = true;
+                },
+
+                async guardarPasaje() {
+                    if (!this.formPasaje.monto || !this.formPasaje.fecha_pago || !this.formPasaje.fecha_viaje) {
+                        this.mostrarAlerta('warning', 'Error', 'Complete todos los campos');
+                        return;
+                    }
+
+                    const montoEnCentavos = Math.round(parseFloat(this.formPasaje.monto) * 100);
+
+                    const datos = {
+                        empleado_id: this.pasajeEmpleadoSeleccionado,
+                        monto: montoEnCentavos,
+                        fecha_pago: this.formPasaje.fecha_pago,
+                        fecha_viaje: this.formPasaje.fecha_viaje,
+                        quincena_pago_id: this.formPasaje.quincena_pago_id
+                    };
+
+                    const resultado = await this.llamarAPI('/pasajes', 'POST', datos);
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Pasaje creado correctamente');
+                        this.cancelarDialogoPasaje();
+                        await this.cargarPasajes();
+                        await this.cargarTodosPasajes();
+                    }
+                },
+
+                cancelarDialogoPasaje() {
+                    this.mostrarDialogoNuevoPasaje = false;
+                    this.mostrarDialogoEditarPasaje = false;
+                    this.formPasaje = { monto: null, fecha_pago: '', fecha_viaje: '', quincena_pago_id: null };
+                    this.pasajeEnEdicion = null;
+                },
+
+                editarPasaje(pasaje) {
+                    // Convertir centavos a pesos y mostrar sin decimales si no los hay
+                    const montoEnPesos = pasaje.monto / 100;
+                    const montoFormato = montoEnPesos % 1 === 0 ? montoEnPesos.toString() : montoEnPesos.toFixed(2);
+
+                    this.formPasaje = {
+                        monto: montoFormato,
+                        fecha_pago: pasaje.fecha_pago,
+                        fecha_viaje: pasaje.fecha_viaje,
+                        quincena_pago_id: pasaje.quincena_pago_id
+                    };
+                    this.pasajeEnEdicion = pasaje.id;
+                    this.mostrarDialogoEditarPasaje = true;
+                },
+
+                async guardarPasajeEditado() {
+                    if (!this.formPasaje.monto || !this.formPasaje.fecha_pago || !this.formPasaje.fecha_viaje) {
+                        this.mostrarAlerta('warning', 'Error', 'Complete todos los campos');
+                        return;
+                    }
+
+                    const montoEnCentavos = Math.round(parseFloat(this.formPasaje.monto) * 100);
+
+                    const datos = {
+                        monto: montoEnCentavos,
+                        fecha_pago: this.formPasaje.fecha_pago,
+                        fecha_viaje: this.formPasaje.fecha_viaje,
+                        quincena_pago_id: this.formPasaje.quincena_pago_id
+                    };
+
+                    const resultado = await this.llamarAPI(`/pasajes/${this.pasajeEnEdicion}`, 'PUT', datos);
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Pasaje actualizado correctamente');
+                        this.mostrarDialogoEditarPasaje = false;
+                        await this.cargarPasajes();
+                        await this.cargarTodosPasajes();
+                    }
+                },
+
+                async eliminarPasaje(id) {
+                    if (!confirm('¿Eliminar este pasaje?')) return;
+
+                    const resultado = await this.llamarAPI(`/pasajes/${id}`, 'DELETE');
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Pasaje eliminado');
+                        await this.cargarPasajes();
+                        await this.cargarTodosPasajes();
+                    }
+                },
+
+                // Retroactivos
+                async cargarRetroactivos() {
+                    if (this.retroEmpleadoSeleccionado) {
+                        const resultado = await this.llamarAPI(`/retroactivos?empleado_id=${this.retroEmpleadoSeleccionado}`);
+                        if (resultado) {
+                            this.retroactivosFiltrados = resultado;
+                        }
+                    }
+                },
+
+                abrirDialogoNuevoRetroactivo() {
+                    if (!this.retroEmpleadoSeleccionado) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Seleccione un empleado');
+                        return;
+                    }
+                    this.formRetroactivo = { monto_por_mes: null, cantidad_meses: null, quincena_inicio_id: null };
+                    this.mostrarDialogoNuevoRetroactivo = true;
+                },
+
+                async guardarRetroactivo() {
+                    if (!this.formRetroactivo.monto_por_mes || !this.formRetroactivo.cantidad_meses) {
+                        this.mostrarAlerta('warning', 'Error', 'Complete todos los campos');
+                        return;
+                    }
+
+                    const datos = {
+                        empleado_id: this.retroEmpleadoSeleccionado,
+                        monto_por_mes: this.formRetroactivo.monto_por_mes,
+                        cantidad_meses: this.formRetroactivo.cantidad_meses,
+                        quincena_inicio_id: this.formRetroactivo.quincena_inicio_id
+                    };
+
+                    const resultado = await this.llamarAPI('/retroactivos', 'POST', datos);
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Retroactivo creado correctamente');
+                        this.cancelarDialogoRetroactivo();
+                        await this.cargarRetroactivos();
+                        await this.cargarTodosRetroactivos();
+                    }
+                },
+
+                cancelarDialogoRetroactivo() {
+                    this.mostrarDialogoNuevoRetroactivo = false;
+                    this.mostrarDialogoEditarRetroactivo = false;
+                    this.retroactivoEnEdicion = null;
+                    this.formRetroactivo = { monto_por_mes: null, cantidad_meses: null, quincena_inicio_id: null };
+                },
+
+                editarRetroactivo(retro) {
+                    this.formRetroactivo = {
+                        monto_por_mes: retro.monto_por_mes / 100,
+                        cantidad_meses: retro.cantidad_meses,
+                        quincena_inicio_id: retro.quincena_inicio_id
+                    };
+                    this.retroactivoEnEdicion = retro.id;
+                    this.mostrarDialogoEditarRetroactivo = true;
+                },
+
+                async guardarRetroactivoEditado() {
+                    if (!this.formRetroactivo.monto_por_mes || !this.formRetroactivo.cantidad_meses) {
+                        this.mostrarAlerta('warning', 'Error', 'Complete todos los campos');
+                        return;
+                    }
+
+                    const montoEnCentavos = Math.round(parseFloat(this.formRetroactivo.monto_por_mes) * 100);
+
+                    const datos = {
+                        monto_por_mes: montoEnCentavos,
+                        cantidad_meses: this.formRetroactivo.cantidad_meses,
+                        quincena_inicio_id: this.formRetroactivo.quincena_inicio_id
+                    };
+
+                    const resultado = await this.llamarAPI(`/retroactivos/${this.retroactivoEnEdicion}`, 'PUT', datos);
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Retroactivo actualizado correctamente');
+                        this.cancelarDialogoRetroactivo();
+                        await this.cargarRetroactivos();
+                        await this.cargarTodosRetroactivos();
+                    }
+                },
+
+                async eliminarRetroactivo(id) {
+                    if (!confirm('¿Eliminar este retroactivo?')) return;
+
+                    const resultado = await this.llamarAPI(`/retroactivos/${id}`, 'DELETE');
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Retroactivo eliminado');
+                        await this.cargarRetroactivos();
+                        await this.cargarTodosRetroactivos();
+                    }
+                },
+
+                // Historial
+                async cargarHistorial() {
+                    if (!this.quincenaHistorial) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Seleccione una quincena');
+                        return;
+                    }
+
+                    const resultado = await this.llamarAPI(`/historial/${this.quincenaHistorial}`);
+                    if (resultado) {
+                        this.historialData = resultado;
+                    }
+                },
+
+                get quincenasDescendentes() {
+                    return this.quincenas.sort((a, b) => b.id - a.id);
+                },
+
+                async regenerarPDFsHistorial() {
+                    if (!this.quincenaHistorial) return;
+                    const resultado = await this.llamarAPI(`/quincenas/${this.quincenaHistorial}/generar-pdfs`, 'POST');
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'PDFs generados correctamente');
+                    }
+                },
+
+                async exportarExcelHistorial() {
+                    if (!this.quincenaHistorial) return;
+                    const resultado = await this.llamarAPI(`/quincenas/${this.quincenaHistorial}/exportar-excel`, 'POST');
+                    if (resultado) {
+                        this.mostrarAlerta('success', 'Éxito', 'Excel exportado correctamente');
+                    }
+                },
+
+                // Importación y Exportación
+                abrirDialogoImportarPDF() {
+                    this.mostrarDialogoImportarPDF = true;
+                },
+
+                async procesarPDF() {
+                    const fileInput = document.getElementById('filePDF');
+                    if (!fileInput.files.length) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Seleccione un archivo PDF');
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('file', fileInput.files[0]);
+                    formData.append('quincena_id', this.quincenaActual);
+
+                    try {
+                        const respuesta = await fetch(`/api/quincenas/${this.quincenaActual}/importar-pdf`, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (respuesta.ok) {
+                            this.mostrarAlerta('success', 'Éxito', 'PDF importado correctamente');
+                            this.cancelarDialogoImportarPDF();
+                            await this.cargarQuincena();
+                        } else {
+                            this.mostrarAlerta('error', 'Error', 'No se pudo procesar el PDF');
+                        }
+                    } catch (error) {
+                        this.mostrarAlerta('error', 'Error', error.message);
+                    }
+                },
+
+                cancelarDialogoImportarPDF() {
+                    this.mostrarDialogoImportarPDF = false;
+                    document.getElementById('filePDF').value = '';
+                },
+
+                async generarPDFs() {
+                    if (!this.quincenaActual) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'Seleccione una quincena');
+                        return;
+                    }
+
+                    try {
+                        this.mostrarAlerta('info', 'Generando', 'Creando PDFs, por favor espere...');
+
+                        const respuesta = await fetch(`/api/quincenas/${this.quincenaActual}/generar-pdfs`, {
+                            method: 'POST'
+                        });
+
+                        if (respuesta.ok) {
+                            // Obtener el blob del ZIP
+                            const blob = await respuesta.blob();
+
+                            // Extraer nombre del archivo de headers si disponible
+                            const contentDisposition = respuesta.headers.get('content-disposition');
+                            console.log('[DEBUG] Content-Disposition header:', contentDisposition);
+                            let nombreArchivo = 'PDFs.zip';
+                            if (contentDisposition) {
+                                const matches = contentDisposition.match(/filename="?([^"]+)"?/);
+                                console.log('[DEBUG] Matches:', matches);
+                                if (matches && matches[1]) {
+                                    nombreArchivo = matches[1];
+                                    console.log('[DEBUG] Nombre extraído:', nombreArchivo);
+                                }
+                            }
+
+                            // Crear descarga
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = nombreArchivo;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(url);
+
+                            this.mostrarAlerta('success', 'Éxito', `PDFs descargados: ${nombreArchivo}`);
+                        } else {
+                            const error = await respuesta.json();
+                            this.mostrarAlerta('error', 'Error', error.error || 'No se pudieron generar los PDFs');
+                        }
+                    } catch (error) {
+                        this.mostrarAlerta('error', 'Error', error.message);
+                    }
+                },
+
+                async exportarExcel() {
+                    if (this.liquidaciones.length === 0) {
+                        this.mostrarAlerta('warning', 'Advertencia', 'No hay datos para exportar');
+                        return;
+                    }
+
+                    const datos = this.liquidaciones.map(l => ({
+                        'Legajo': l.legajo,
+                        'Nombre': `${l.nombre} ${l.apellido}`,
+                        'Días': l.dias_trabajados,
+                        'Bruto': l.sueldo_bruto / 100,
+                        'Rec. A': l.recibo_a / 100,
+                        'Hab.S/D': l.hab_s_desc / 100,
+                        'Rec. B': l.recibo_b / 100,
+                        'Deuda': l.deuda_total / 100,
+                        'Cinta': l.cinta_billete / 100
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(datos);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Quincena');
+                    XLSX.writeFile(wb, `Quincena_${this.quincenaActiva.periodo || 'actual'}.xlsx`);
+
+                    this.mostrarAlerta('success', 'Éxito', 'Excel exportado correctamente');
+                },
+
+                logout() {
+                    if (confirm('¿Desea salir de la aplicación?')) {
+                        window.location.href = '/';
+                    }
+                }
+            };
+        }
+    </script>
+</body>
+</html>
