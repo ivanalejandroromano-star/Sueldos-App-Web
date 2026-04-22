@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sueldos App - Gestión de Nómina (Standalone)</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+    <!-- SQLite en JavaScript -->
+    <script src="https://sql.js.org/dist/sql-wasm.js"></script>
+    <style>
+        :root {
+            --color-primary: #1a1a1a;
+            --color-secondary: #E8DCC8;
+            --color-accent: #D4C5B0;
+        }
+        body { background-color: #f5f3f0; color: #1a1a1a; }
+        .header-bg { background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); }
+        .btn-primary { background-color: #1a1a1a; color: #E8DCC8; border: 2px solid #1a1a1a; }
+        .btn-primary:hover:not(:disabled) { background-color: transparent; color: #1a1a1a; }
+        .loading { display: flex; justify-content: center; align-items: center; height: 100vh; }
+    </style>
+</head>
+<body>
+<div id="app" x-data="app()" x-init="init()">
+    <!-- Loading -->
+    <div x-show="cargando" class="loading">
+        <div class="text-center">
+            <div class="text-2xl font-bold mb-4">⏳ Cargando Sueldos App...</div>
+            <div class="text-gray-500">Inicializando base de datos...</div>
+        </div>
+    </div>
+
+    <!-- App -->
+    <div x-show="!cargando" class="min-h-screen">
+        <div class="header-bg text-white p-6">
+            <h1 class="text-3xl font-bold">💼 Sueldos App</h1>
+            <p class="text-sm mt-1">Gestión de Nómina - Versión Standalone (GitHub Pages)</p>
+        </div>
+
+        <div class="p-8">
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <h2 class="text-2xl font-bold mb-4">Estado de la BD</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-gray-600">Empleados:</p>
+                        <p class="text-2xl font-bold" x-text="empleados.length"></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-600">Quincenas:</p>
+                        <p class="text-2xl font-bold" x-text="quincenas.length"></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-600">Deudas:</p>
+                        <p class="text-2xl font-bold" x-text="deudas.length"></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-600">Retroactivos:</p>
+                        <p class="text-2xl font-bold" x-text="retroactivos.length"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulario para probar -->
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <h3 class="text-xl font-bold mb-4">Prueba: Crear Empleado</h3>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <input x-model="formEmpleado.nombre" placeholder="Nombre" class="p-2 border rounded">
+                    <input x-model="formEmpleado.apellido" placeholder="Apellido" class="p-2 border rounded">
+                    <input x-model="formEmpleado.legajo" type="number" placeholder="Legajo" class="p-2 border rounded">
+                    <select x-model="formEmpleado.categoria_id" class="p-2 border rounded">
+                        <option value="">-- Categoría --</option>
+                        <template x-for="cat in categorias" :key="cat.id">
+                            <option :value="cat.id" x-text="`${cat.nombre} ($${centavosAPesos(cat.precio_dia)}/día)`"></option>
+                        </template>
+                    </select>
+                </div>
+                <button @click="crearEmpleado()" class="btn-primary px-6 py-2 rounded text-white">
+                    ✅ Crear Empleado
+                </button>
+                <p x-show="mensaje" class="mt-4 text-green-600 font-bold" x-text="mensaje"></p>
+                <p x-show="error" class="mt-4 text-red-600 font-bold" x-text="error"></p>
+            </div>
+
+            <!-- Listado de Empleados -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h3 class="text-xl font-bold mb-4">Empleados</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-2 text-left">Legajo</th>
+                                <th class="px-4 py-2 text-left">Nombre</th>
+                                <th class="px-4 py-2 text-left">Apellido</th>
+                                <th class="px-4 py-2 text-left">Categoría</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="emp in empleados" :key="emp.id">
+                                <tr class="border-b hover:bg-gray-50">
+                                    <td class="px-4 py-2" x-text="emp.legajo"></td>
+                                    <td class="px-4 py-2" x-text="emp.nombre"></td>
+                                    <td class="px-4 py-2" x-text="emp.apellido"></td>
+                                    <td class="px-4 py-2" x-text="obtenerCategoriaNombre(emp.categoria_id)"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                    <p x-show="empleados.length === 0" class="text-gray-500 mt-4">No hay empleados aún</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Inicialización de SQL.js
+    let db = null;
+
+    function app() {
+        return {
+            cargando: true,
+            empleados: [],
+            quincenas: [],
+            deudas: [],
+            retroactivos: [],
+            categorias: [],
+            formEmpleado: {
+                nombre: '',
+                apellido: '',
+                legajo: '',
+                categoria_id: ''
+            },
+            mensaje: '',
+            error: '',
+
+            async init() {
+                try {
+                    this.cargando = true;
+
+                    // Cargar SQL.js
+                    const SQL = await initSqlJs();
+
+                    // Cargar BD desde GitHub
+                    const response = await fetch('./sueldos.db');
+                    const buffer = await response.arrayBuffer();
+                    db = new SQL.Database(new Uint8Array(buffer));
+
+                    console.log('[DEBUG] BD cargada correctamente');
+
+                    // Cargar datos iniciales
+                    await this.cargarEmpleados();
+                    await this.cargarQuincenas();
+                    await this.cargarDeudas();
+                    await this.cargarRetroactivos();
+                    await this.cargarCategorias();
+
+                    this.cargando = false;
+                } catch (error) {
+                    this.error = `Error al inicializar: ${error.message}`;
+                    console.error('[ERROR]', error);
+                    this.cargando = false;
+                }
+            },
+
+            cargarEmpleados() {
+                try {
+                    const result = db.exec('SELECT * FROM empleados ORDER BY apellido, nombre');
+                    if (result.length > 0) {
+                        this.empleados = result[0].values.map(row => ({
+                            id: row[0],
+                            legajo: row[1],
+                            nombre: row[2],
+                            apellido: row[3],
+                            cuil: row[4],
+                            categoria_id: row[5],
+                            fecha_alta: row[6],
+                            fecha_baja: row[7]
+                        }));
+                    }
+                } catch (error) {
+                    console.error('[ERROR] cargarEmpleados:', error);
+                }
+            },
+
+            cargarQuincenas() {
+                try {
+                    const result = db.exec('SELECT * FROM quincenas ORDER BY id DESC');
+                    if (result.length > 0) {
+                        this.quincenas = result[0].values.map(row => ({
+                            id: row[0],
+                            periodo: row[1],
+                            fecha_inicio: row[2],
+                            fecha_fin: row[3],
+                            cerrada: row[4]
+                        }));
+                    }
+                } catch (error) {
+                    console.error('[ERROR] cargarQuincenas:', error);
+                }
+            },
+
+            cargarDeudas() {
+                try {
+                    const result = db.exec('SELECT * FROM deudas');
+                    if (result.length > 0) {
+                        this.deudas = result[0].values.map(row => ({
+                            id: row[0],
+                            empleado_id: row[1],
+                            motivo: row[2],
+                            monto_total: row[3],
+                            saldo_pendiente: row[4]
+                        }));
+                    }
+                } catch (error) {
+                    console.error('[ERROR] cargarDeudas:', error);
+                }
+            },
+
+            cargarRetroactivos() {
+                try {
+                    const result = db.exec('SELECT * FROM retroactivos_programados');
+                    if (result.length > 0) {
+                        this.retroactivos = result[0].values.map(row => ({
+                            id: row[0],
+                            empleado_id: row[1],
+                            monto_total: row[2],
+                            saldo_pendiente: row[4]
+                        }));
+                    }
+                } catch (error) {
+                    console.error('[ERROR] cargarRetroactivos:', error);
+                }
+            },
+
+            cargarCategorias() {
+                try {
+                    const result = db.exec('SELECT * FROM categorias ORDER BY nombre');
+                    if (result.length > 0) {
+                        this.categorias = result[0].values.map(row => ({
+                            id: row[0],
+                            nombre: row[1],
+                            precio_dia: row[2]
+                        }));
+                    }
+                } catch (error) {
+                    console.error('[ERROR] cargarCategorias:', error);
+                }
+            },
+
+            obtenerCategoriaNombre(categoria_id) {
+                const cat = this.categorias.find(c => c.id === categoria_id);
+                return cat ? cat.nombre : 'Sin categoría';
+            },
+
+            crearEmpleado() {
+                try {
+                    this.error = '';
+                    this.mensaje = '';
+
+                    if (!this.formEmpleado.nombre || !this.formEmpleado.apellido || !this.formEmpleado.legajo) {
+                        this.error = 'Complete todos los campos';
+                        return;
+                    }
+
+                    const fecha = new Date().toISOString().split('T')[0];
+                    const stmt = db.prepare(`
+                        INSERT INTO empleados (legajo, nombre, apellido, cuil, categoria_id, fecha_alta)
+                        VALUES (?, ?, ?, '', ?, ?)
+                    `);
+
+                    stmt.bind([
+                        parseInt(this.formEmpleado.legajo),
+                        this.formEmpleado.nombre,
+                        this.formEmpleado.apellido,
+                        parseInt(this.formEmpleado.categoria_id),
+                        fecha
+                    ]);
+
+                    stmt.step();
+                    stmt.free();
+
+                    this.mensaje = `✅ Empleado creado correctamente`;
+                    this.formEmpleado = { nombre: '', apellido: '', legajo: '', categoria_id: '' };
+
+                    this.cargarEmpleados();
+                } catch (error) {
+                    this.error = `Error: ${error.message}`;
+                    console.error('[ERROR] crearEmpleado:', error);
+                }
+            },
+
+            centavosAPesos(centavos) {
+                return (centavos / 100).toLocaleString('es-AR', {
+                    style: 'currency',
+                    currency: 'ARS',
+                    minimumFractionDigits: 0
+                });
+            }
+        }
+    }
+</script>
+</body>
+</html>
