@@ -1,5 +1,5 @@
 """
-Backend Flask para Vercel - Versión Debug
+Backend Flask para Vercel
 """
 
 from flask import Flask, request, jsonify
@@ -12,64 +12,36 @@ import traceback
 app = Flask(__name__)
 CORS(app)
 
-print("[INIT] Iniciando servidor...")
+# Usar ruta absoluta en Vercel
+BD_PATH = '/var/task/sueldos.db'
+
+print(f"[INIT] BD_PATH: {BD_PATH}")
+print(f"[INIT] Existe: {Path(BD_PATH).exists()}")
 print(f"[INIT] CWD: {os.getcwd()}")
-print(f"[INIT] Archivos en directorio actual:")
-for item in os.listdir('.'):
-    print(f"  - {item}")
-
-# Encontrar sueldos.db
-BD_PATH = None
-rutas_a_probar = [
-    Path('./sueldos.db'),
-    Path('./data/sueldos.db'),
-    Path('./public/sueldos.db'),
-    Path('/tmp/sueldos.db'),
-    Path('/var/task/sueldos.db'),
-]
-
-print("[DEBUG] Buscando sueldos.db...")
-for ruta in rutas_a_probar:
-    ruta_abs = ruta.resolve()
-    existe = ruta.exists()
-    tamaño = ruta.stat().st_size if existe else 0
-    print(f"  {ruta_abs}: {'✓ ENCONTRADO' if existe else '✗ no existe'} ({tamaño} bytes)")
-    if existe and BD_PATH is None:
-        BD_PATH = str(ruta)
-        print(f"  → Usando: {BD_PATH}")
-
-if not BD_PATH:
-    print("[ERROR] NO SE ENCONTRÓ SUELDOS.DB EN NINGUNA UBICACIÓN")
 
 def get_connection():
-    if not BD_PATH:
-        raise Exception("sueldos.db no encontrado en ninguna ubicación")
+    """Abre conexión a SQLite"""
     try:
         conn = sqlite3.connect(BD_PATH, timeout=10.0)
         conn.row_factory = sqlite3.Row
         return conn
     except Exception as e:
-        raise Exception(f"Error conectando a {BD_PATH}: {str(e)}")
+        raise Exception(f"No se pudo conectar a {BD_PATH}: {str(e)}")
 
 # ============== ENDPOINTS ==============
 
 @app.route('/api/debug', methods=['GET'])
 def debug():
-    """Endpoint para debuggear"""
     return jsonify({
-        'status': 'debug mode',
-        'cwd': os.getcwd(),
+        'status': 'debug',
         'bd_path': BD_PATH,
-        'bd_existe': Path(BD_PATH).exists() if BD_PATH else False,
-        'archivos': os.listdir('.')
+        'bd_existe': Path(BD_PATH).exists(),
+        'cwd': os.getcwd()
     }), 200
 
 @app.route('/api/health', methods=['GET'])
 def health():
     try:
-        if not BD_PATH:
-            return jsonify({'status': 'error', 'message': 'BD no encontrada'}), 500
-        
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM empleados")
@@ -79,10 +51,9 @@ def health():
         return jsonify({
             'status': 'ok',
             'empleados': count,
-            'db_path': BD_PATH
+            'database': 'connected'
         }), 200
     except Exception as e:
-        print(f"[ERROR] health: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e),
@@ -101,8 +72,7 @@ def get_empleados():
         empleados = [dict(row) for row in rows]
         return jsonify(empleados), 200
     except Exception as e:
-        print(f"[ERROR] empleados: {str(e)}")
-        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/quincenas', methods=['GET'])
 def get_quincenas():
@@ -116,7 +86,6 @@ def get_quincenas():
         quincenas = [dict(row) for row in rows]
         return jsonify(quincenas), 200
     except Exception as e:
-        print(f"[ERROR] quincenas: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/categorias', methods=['GET'])
@@ -131,7 +100,6 @@ def get_categorias():
         categorias = [dict(row) for row in rows]
         return jsonify(categorias), 200
     except Exception as e:
-        print(f"[ERROR] categorias: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/deudas', methods=['GET'])
@@ -146,7 +114,6 @@ def get_deudas():
         deudas = [dict(row) for row in rows]
         return jsonify(deudas), 200
     except Exception as e:
-        print(f"[ERROR] deudas: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/retroactivos', methods=['GET'])
@@ -161,12 +128,11 @@ def get_retroactivos():
         retroactivos = [dict(row) for row in rows]
         return jsonify(retroactivos), 200
     except Exception as e:
-        print(f"[ERROR] retroactivos: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.errorhandler(500)
 def error_500(e):
-    return jsonify({'error': 'Error interno', 'details': str(e)}), 500
+    return jsonify({'error': 'Error interno'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
