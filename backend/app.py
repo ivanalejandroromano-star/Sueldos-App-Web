@@ -33,6 +33,28 @@ from flask import send_file
 app = Flask(__name__)
 CORS(app)
 
+# Detectar ruta local de BD (para cuando se clona desde GitHub)
+def encontrar_bd_local():
+    """Busca BD en carpeta local data/ o data/sueldos.db"""
+    # Ruta relativa al backend/
+    rutas_posibles = [
+        Path(__file__).parent.parent / "data" / "sueldos.db",  # ../data/sueldos.db
+        Path(__file__).parent / "data" / "sueldos.db",         # ./data/sueldos.db
+        Path.cwd() / "data" / "sueldos.db",                    # cwd/data/sueldos.db
+    ]
+
+    for ruta in rutas_posibles:
+        if ruta.exists():
+            print(f"[DEBUG] BD local encontrada: {ruta}")
+            return ruta
+    return None
+
+# Intentar usar BD local si existe
+bd_local = encontrar_bd_local()
+if bd_local:
+    set_db_path(str(bd_local))
+    print(f"[INFO] Usando BD local: {bd_local}")
+
 # Estado global
 estado = {
     'obra_actual': 'Tandil',
